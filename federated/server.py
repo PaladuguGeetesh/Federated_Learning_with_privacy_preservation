@@ -3,9 +3,11 @@ Federated round orchestration (Flower simulation, FedAvg) across clients A, B, C
 
 Per round: send the global arrays to every client -> clients train locally ->
 collect (arrays, local sample count) -> aggregate via federated/aggregation.py
--> evaluate the new global model on the combined VALIDATION set
-(core.dataset.combined_federated_validation: each client's validation slice,
-scaled by that client's own scaler — the same scaling its training data had).
+-> evaluate the new global model on the combined VALIDATION set (every
+client's validation slice), scaled with the sample-count-weighted combined
+client scaler (core.dataset.combine_scalers). That is the same scaler the
+one-time test evaluation uses, so the per-round validation trajectory and the
+final test metric score the same model under the same input scaling.
 
 The held-out test set is never read here. After the run, the global model is
 saved as a checkpoint together with the sample-count-weighted combined client
@@ -40,10 +42,11 @@ from core.dataset import (
     CLIENT_IDS,
     LABEL_MAPPING,
     SplitArrays,
+    apply_scaler,
     combine_scalers,
-    combined_federated_validation,
     get_device,
     load_all_clients,
+    load_raw_validation,
     make_dataloader,
 )
 from core.evaluate import compute_metrics, predict_proba_loader
@@ -208,12 +211,19 @@ def run_federated(cfg: Config, settings: FederatedSettings, *, rounds: int, loca
     # server reads the client files directly; in a real deployment each client would
     # send its validation predictions/metrics and its scaler's (n, mean, var).)
     clients = load_all_clients(cfg.data.dataset_dir, cfg.data.val_fraction, cfg.seed)
-    val = combined_federated_validation(clients)
     feature_names = clients[CLIENT_IDS[0]].feature_names
     client_features = {cid: c.feature_names for cid, c in clients.items()}
     test_scaler = combine_scalers([clients[cid].scaler for cid in CLIENT_IDS])
     client_sizes = {cid: len(c.train.y) for cid, c in clients.items()}
     del clients  # free the training arrays held here; clients load their own data
+
+    # Combined validation rows (same rows and order as combined_federated_validation()),
+    # scaled with the combined scaler rather than each client's own scaler.
+    X_val_raw, y_val, val_features = load_raw_validation(cfg.data.dataset_dir, cfg.data.val_fraction, cfg.seed)
+    if val_features != feature_names:
+        raise ValueError("Validation feature schema differs from the clients' training schema")
+    val = SplitArrays(apply_scaler(test_scaler, X_val_raw), y_val)
+    del X_val_raw
 
     set_seed(cfg.seed)
     global_model = build_model(settings, len(feature_names)).to(device)
@@ -269,7 +279,8 @@ def run_federated(cfg: Config, settings: FederatedSettings, *, rounds: int, loca
         "rounds": rounds,
         "local_epochs": local_epochs,
         "parameter_shapes": {k: list(v) for k, v in shapes.items()},
-        "validation_data": "combined_federated_validation() (each client's val slice, own client scaler)",
+        "validation_data": "all clients' validation slices, scaled with the combined (sample-weighted) client scaler",
+        "validation_scaler": "core.dataset.combine_scalers (same scaler stored in the checkpoints for the test evaluation)",
         "best_round_by_val_pr_auc": evaluator.best_round,
         "best_val_pr_auc": evaluator.best_pr_auc,
         "wall_clock_seconds": seconds,
