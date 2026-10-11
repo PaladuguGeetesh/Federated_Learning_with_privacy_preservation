@@ -1,0 +1,59 @@
+Device: mps
+Train rows: 1,606,899  Validation rows: 178,545
+/Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/venv/lib/python3.11/site-packages/optuna/_experimental.py:33: ExperimentalWarning: Argument ``heartbeat_interval`` is an experimental feature. The interface can change in the future.
+  optuna_warn(
+[I 2026-10-11 16:21:50,771] Using an existing study with `study_name='ann_centralized'` instead of creating a new one.
+Study 'ann_centralized' at /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/optuna/ann_centralized.db: 40 finished trials, running 0 more (target 40)
+Study finished: {'complete': 18, 'pruned': 22, 'fail': 0}
+Best trial #14: val_pr_auc=0.99857
+Saved /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/best_hyperparameters.json
+Saved trial log /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/optuna/ann_centralized_trials.csv
+
+Retraining best trial #14 (val_pr_auc=0.99857) with full training (no pruning)
+epoch   1/25  train_loss 0.08789  val_loss 0.04375  val_pr_auc 0.98735 *  (6.4s)
+epoch   2/25  train_loss 0.04052  val_loss 0.03394  val_pr_auc 0.99200 *  (3.7s)
+epoch   3/25  train_loss 0.03339  val_loss 0.02922  val_pr_auc 0.99449 *  (3.7s)
+epoch   4/25  train_loss 0.02909  val_loss 0.02626  val_pr_auc 0.99569 *  (3.6s)
+epoch   5/25  train_loss 0.02586  val_loss 0.02236  val_pr_auc 0.99671 *  (3.7s)
+epoch   6/25  train_loss 0.02352  val_loss 0.02015  val_pr_auc 0.99719 *  (3.7s)
+epoch   7/25  train_loss 0.02116  val_loss 0.01842  val_pr_auc 0.99742 *  (3.6s)
+epoch   8/25  train_loss 0.01991  val_loss 0.01721  val_pr_auc 0.99777 *  (3.7s)
+epoch   9/25  train_loss 0.01870  val_loss 0.01602  val_pr_auc 0.99791 *  (3.7s)
+epoch  10/25  train_loss 0.01791  val_loss 0.01543  val_pr_auc 0.99806 *  (3.7s)
+epoch  11/25  train_loss 0.01709  val_loss 0.01489  val_pr_auc 0.99823 *  (3.7s)
+epoch  12/25  train_loss 0.01658  val_loss 0.01509  val_pr_auc 0.99825  (3.7s)
+epoch  13/25  train_loss 0.01631  val_loss 0.01447  val_pr_auc 0.99831  (3.7s)
+epoch  14/25  train_loss 0.01630  val_loss 0.01472  val_pr_auc 0.99837 *  (3.7s)
+epoch  15/25  train_loss 0.01560  val_loss 0.01470  val_pr_auc 0.99842  (3.7s)
+epoch  16/25  train_loss 0.01529  val_loss 0.01415  val_pr_auc 0.99842  (3.7s)
+epoch  17/25  train_loss 0.01522  val_loss 0.01359  val_pr_auc 0.99857 *  (3.7s)
+epoch  18/25  train_loss 0.01492  val_loss 0.01359  val_pr_auc 0.99858  (3.8s)
+epoch  19/25  train_loss 0.01486  val_loss 0.01717  val_pr_auc 0.99822  (3.8s)
+epoch  20/25  train_loss 0.01461  val_loss 0.01383  val_pr_auc 0.99846  (3.8s)
+Early stopping: no val_pr_auc improvement for 3 epochs (best 0.99857 at epoch 17)
+Validation (max_f1) (threshold = 0.645252, n = 178,545)
+  Attack recall (detection rate): 0.9803  (26,390 of 26,919 attacks detected)
+  False negatives (missed attacks): 529  (FNR 0.0197)
+  False positives (false alarms):   176  (FPR 0.0012)
+  Accuracy 0.9961  Precision 0.9934  F1 0.9868  Macro-F1 0.9922
+  ROC-AUC 0.9997  PR-AUC 0.9986
+  Confusion matrix (rows = actual, cols = predicted):
+                 pred Benign   pred Attack
+    act Benign       151,450           176
+    act Attack           529        26,390
+
+HELD-OUT TEST (centralized ANN, Optuna-tuned) (threshold = 0.645252, n = 446,362)
+  Attack recall (detection rate): 0.9811  (66,026 of 67,299 attacks detected)
+  False negatives (missed attacks): 1,273  (FNR 0.0189)
+  False positives (false alarms):   523  (FPR 0.0014)
+  Accuracy 0.9960  Precision 0.9921  F1 0.9866  Macro-F1 0.9921
+  ROC-AUC 0.9997  PR-AUC 0.9985
+  Confusion matrix (rows = actual, cols = predicted):
+                 pred Benign   pred Attack
+    act Benign       378,540           523
+    act Attack         1,273        66,026
+
+Saved /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/ann_centralized_metrics.json
+real 82.20
+user 337.58
+sys 395.68

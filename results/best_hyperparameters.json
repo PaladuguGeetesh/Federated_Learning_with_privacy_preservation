@@ -66,5 +66,5 @@
   },
   "validation_data": "load_centralized_data().val (combined client validation rows, pooled-train scaler)",
   "test_set_used": false,
-  "generated_at": "2026-10-11T10:46:37+00:00"
+  "generated_at": "2026-10-11T10:51:50+00:00"
 }
