@@ -20,7 +20,8 @@ Three layers, kept deliberately separate:
        evaluate_on_test()   requires an already-chosen threshold and an
                             already-fitted scaler (or an explicit None for the
                             unscaled RF). It never selects a threshold and never
-                            fits anything. Optuna (Phase 6) must not import it.
+                            fits anything. The Optuna objective never calls it;
+                            only the single final step after the study does.
 
 Final test evaluation of a checkpoint (run once, after all tuning is complete):
     python -m core.evaluate --checkpoint models/ann_centralized/best.pt --name ann_centralized --final-test
@@ -56,8 +57,9 @@ RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
 def _sigmoid_float64(logits: torch.Tensor) -> np.ndarray:
     """Logits -> probabilities in float64 (float32 sigmoid rounds to exactly 1.0 for
-    logits above ~17, which would create artificial ties among confident attacks)."""
-    return torch.sigmoid(logits.detach().double()).cpu().numpy().reshape(-1)
+    logits above ~17, which would create artificial ties among confident attacks).
+    Moved to CPU first: MPS has no float64 support."""
+    return torch.sigmoid(logits.detach().cpu().double()).numpy().reshape(-1)
 
 
 def predict_proba(

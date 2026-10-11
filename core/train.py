@@ -51,6 +51,12 @@ from core.early_stopping import EarlyStopping
 
 # Computes extra per-epoch validation metrics, e.g. {"val_pr_auc": 0.97} (Phase 5/6).
 ExtraMetricsFn = Callable[[nn.Module, DataLoader, torch.device], dict[str, float]]
+# Called with each finished epoch's history record (e.g. Optuna reporting/pruning).
+EpochCallback = Callable[[dict[str, Any]], None]
+
+
+class TrainingDivergedError(RuntimeError):
+    """Raised when the training loss becomes NaN/inf (e.g. learning rate too high)."""
 
 
 def set_seed(seed: int) -> None:
@@ -89,6 +95,28 @@ def build_optimizer(model: nn.Module, config: TrainingConfig) -> torch.optim.Opt
     if config.optimizer == "adamw":
         return torch.optim.AdamW(params, lr=config.learning_rate, weight_decay=config.weight_decay)
     raise ValueError(f"Unknown optimizer {config.optimizer!r}")
+
+
+def compute_pos_weight(y_train: np.ndarray, class_weighting: str, pos_weight_scale: float) -> float | None:
+    """BCEWithLogitsLoss pos_weight for a class-weighting strategy, from the TRAINING labels only.
+
+    none            -> None (equivalent to pos_weight = 1)
+    balanced        -> n_benign / n_attack in the training split
+    balanced_scaled -> balanced * pos_weight_scale
+    """
+    if class_weighting == "none":
+        return None
+    y_train = np.asarray(y_train).reshape(-1)
+    n_attack = int((y_train == 1).sum())
+    n_benign = int((y_train == 0).sum())
+    if n_attack == 0 or n_benign == 0:
+        raise ValueError("Class weighting needs both classes in the training labels")
+    balanced = n_benign / n_attack
+    if class_weighting == "balanced":
+        return balanced
+    if class_weighting == "balanced_scaled":
+        return balanced * pos_weight_scale
+    raise ValueError(f"Unknown class_weighting {class_weighting!r}")
 
 
 def build_criterion(pos_weight: float | None, device: torch.device) -> nn.BCEWithLogitsLoss:
@@ -146,7 +174,7 @@ def train_one_epoch(
         raise RuntimeError("Training loader produced no batches")
     mean_loss = loss_sum.item() / num_samples
     if not math.isfinite(mean_loss):
-        raise RuntimeError(f"Training loss became non-finite ({mean_loss}); try a lower learning rate or gradient clipping")
+        raise TrainingDivergedError(f"Training loss became non-finite ({mean_loss}); try a lower learning rate or gradient clipping")
     return EpochResult(
         loss=mean_loss,
         num_samples=num_samples,
@@ -211,6 +239,7 @@ def fit(
     pos_weight: float | None = None,
     restore_best: bool = True,
     checkpoint_extra: dict[str, Any] | None = None,
+    epoch_callback: EpochCallback | None = None,
     verbose: bool = True,
 ) -> FitResult:
     """Train `model` with early stopping, checkpointing and optional resuming.
@@ -230,6 +259,8 @@ def fit(
         pos_weight: Optional BCEWithLogitsLoss positive-class weight (used for train and val loss).
         restore_best: Load the best epoch's weights into `model` before returning.
         checkpoint_extra: Extra info stored in every checkpoint (e.g. tuned hyperparameters).
+        epoch_callback: Called with each epoch's history record after checkpointing; may raise
+            (e.g. optuna.TrialPruned) to abort training.
     """
     criterion = build_criterion(pos_weight, device)
     optimizer = build_optimizer(model, training_config)
@@ -314,6 +345,8 @@ def fit(
                 f"epoch {epoch:>3}/{training_config.epochs}  train_loss {record['train_loss']:.5f}  "
                 f"val_loss {record['val_loss']:.5f}{monitored}{mark}  ({record['epoch_seconds']:.1f}s)"
             )
+        if epoch_callback is not None:
+            epoch_callback(record)
         if stopper.should_stop:
             if verbose:
                 print(f"Early stopping: no {stopper.metric} improvement for {stopper.patience} epochs "
@@ -368,6 +401,9 @@ def main() -> None:
     )
     print(f"Train rows: {len(data.train.y):,}  Val rows: {len(data.val.y):,}  Features: {len(data.feature_names)}")
 
+    pos_weight = compute_pos_weight(data.train.y, cfg.training.class_weighting, cfg.training.pos_weight_scale)
+    print(f"Class weighting: {cfg.training.class_weighting} (pos_weight={pos_weight})")
+
     model = ANN(len(data.feature_names), cfg.ann).to(device)
     result = fit(
         model,
@@ -380,6 +416,7 @@ def main() -> None:
         scaler=data.scaler,
         checkpoint_manager=manager,
         resume_from=resume_from,
+        pos_weight=pos_weight,
     )
     print(
         f"Done. Best {result.metric} = {result.best_value} at epoch {result.best_epoch}; "

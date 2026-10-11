@@ -98,6 +98,7 @@ class ANNConfig:
 
 VALID_OPTIMIZERS = ("sgd", "adam", "adamw")
 VALID_MODES = ("min", "max")
+VALID_CLASS_WEIGHTING = ("none", "balanced", "balanced_scaled")
 
 
 @dataclass(frozen=True)
@@ -145,6 +146,8 @@ class TrainingConfig:
     batch_size: int
     epochs: int
     grad_clip_norm: float | None  # None disables gradient clipping
+    class_weighting: str  # none | balanced | balanced_scaled (see core.train.compute_pos_weight)
+    pos_weight_scale: float  # used only by balanced_scaled
     early_stopping: EarlyStoppingConfig
     checkpoint_dir: Path
 
@@ -163,6 +166,12 @@ class TrainingConfig:
             raise ValueError(f"training.epochs must be >= 1, got {self.epochs}")
         if self.grad_clip_norm is not None and self.grad_clip_norm <= 0:
             raise ValueError(f"training.grad_clip_norm must be null or > 0, got {self.grad_clip_norm}")
+        if self.class_weighting not in VALID_CLASS_WEIGHTING:
+            raise ValueError(
+                f"training.class_weighting must be one of {VALID_CLASS_WEIGHTING}, got {self.class_weighting!r}"
+            )
+        if self.pos_weight_scale <= 0:
+            raise ValueError(f"training.pos_weight_scale must be > 0, got {self.pos_weight_scale}")
 
     @classmethod
     def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "TrainingConfig":
@@ -180,6 +189,8 @@ class TrainingConfig:
             batch_size=int(d["batch_size"]),
             epochs=int(d["epochs"]),
             grad_clip_norm=None if clip is None else float(clip),
+            class_weighting=str(d["class_weighting"]).lower(),
+            pos_weight_scale=float(d["pos_weight_scale"]),
             early_stopping=EarlyStoppingConfig.from_dict(d["early_stopping"]),
             checkpoint_dir=checkpoint_dir,
         )
@@ -223,6 +234,135 @@ class EvaluationConfig:
         )
 
 
+def _range(section: str, value: Any, cast: type, positive: bool = False) -> tuple[Any, Any]:
+    """Parse a [low, high] list."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{section} must be a [low, high] list, got {value!r}")
+    low, high = cast(value[0]), cast(value[1])
+    if low > high:
+        raise ValueError(f"{section}: low {low} > high {high}")
+    if positive and low <= 0:
+        raise ValueError(f"{section}: values must be > 0 (log-scale range), got low {low}")
+    return low, high
+
+
+def _choices(section: str, value: Any, cast: type, allowed: tuple | None = None) -> tuple[Any, ...]:
+    """Parse a non-empty list of choices."""
+    if not isinstance(value, (list, tuple)) or len(value) == 0:
+        raise ValueError(f"{section} must be a non-empty list, got {value!r}")
+    if cast is bool and not all(isinstance(v, bool) for v in value):
+        raise ValueError(f"{section} must contain only true/false, got {value!r}")
+    out = tuple(cast(v) for v in value)
+    if allowed is not None and any(v not in allowed for v in out):
+        raise ValueError(f"{section} values must be in {allowed}, got {out}")
+    return out
+
+
+@dataclass(frozen=True)
+class SearchSpaceConfig:
+    """Optuna search ranges ([low, high]) and choice lists for the centralized ANN."""
+
+    n_layers: tuple[int, int]
+    layer_size: tuple[int, int]
+    optimizer: tuple[str, ...]
+    epochs: tuple[int, int]
+    learning_rate: tuple[float, float]
+    batch_size: tuple[int, ...]
+    dropout: tuple[float, float]
+    weight_decay: tuple[float, float]
+    batch_norm: tuple[bool, ...]
+    momentum: tuple[float, float]
+    grad_clip: tuple[bool, ...]
+    grad_clip_norm: tuple[float, float]
+    class_weighting: tuple[str, ...]
+    pos_weight_scale: tuple[float, float]
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "SearchSpaceConfig":
+        sec = "optuna.search_space"
+        _check_keys(sec, d, {f for f in cls.__dataclass_fields__})
+        space = cls(
+            n_layers=_range(f"{sec}.n_layers", d["n_layers"], int, positive=True),
+            layer_size=_range(f"{sec}.layer_size", d["layer_size"], int, positive=True),
+            optimizer=_choices(f"{sec}.optimizer", d["optimizer"], str, VALID_OPTIMIZERS),
+            epochs=_range(f"{sec}.epochs", d["epochs"], int, positive=True),
+            learning_rate=_range(f"{sec}.learning_rate", d["learning_rate"], float, positive=True),
+            batch_size=_choices(f"{sec}.batch_size", d["batch_size"], int),
+            dropout=_range(f"{sec}.dropout", d["dropout"], float),
+            weight_decay=_range(f"{sec}.weight_decay", d["weight_decay"], float, positive=True),
+            batch_norm=_choices(f"{sec}.batch_norm", d["batch_norm"], bool),
+            momentum=_range(f"{sec}.momentum", d["momentum"], float),
+            grad_clip=_choices(f"{sec}.grad_clip", d["grad_clip"], bool),
+            grad_clip_norm=_range(f"{sec}.grad_clip_norm", d["grad_clip_norm"], float, positive=True),
+            class_weighting=_choices(f"{sec}.class_weighting", d["class_weighting"], str, VALID_CLASS_WEIGHTING),
+            pos_weight_scale=_range(f"{sec}.pos_weight_scale", d["pos_weight_scale"], float, positive=True),
+        )
+        if any(b < 1 for b in space.batch_size):
+            raise ValueError(f"{sec}.batch_size values must be >= 1")
+        if not (0.0 <= space.dropout[0] and space.dropout[1] < 1.0):
+            raise ValueError(f"{sec}.dropout must lie within [0, 1)")
+        if not (0.0 <= space.momentum[0] and space.momentum[1] < 1.0):
+            raise ValueError(f"{sec}.momentum must lie within [0, 1)")
+        return space
+
+
+@dataclass(frozen=True)
+class OptunaConfig:
+    """Study, pruning and per-trial early-stopping settings for core/optuna_search.py."""
+
+    study_name: str
+    storage_path: Path
+    n_trials: int
+    timeout_seconds: float | None
+    sampler_seed: int
+    pruner_startup_trials: int
+    pruner_warmup_epochs: int
+    early_stopping_patience: int
+    early_stopping_min_delta: float
+    final_checkpoint_dir: Path
+    search_space: SearchSpaceConfig
+
+    def __post_init__(self) -> None:
+        if not self.study_name:
+            raise ValueError("optuna.study_name must be non-empty")
+        if self.n_trials < 1:
+            raise ValueError(f"optuna.n_trials must be >= 1, got {self.n_trials}")
+        if self.timeout_seconds is not None and self.timeout_seconds <= 0:
+            raise ValueError(f"optuna.timeout_seconds must be null or > 0, got {self.timeout_seconds}")
+        if self.pruner_startup_trials < 0 or self.pruner_warmup_epochs < 0:
+            raise ValueError("optuna.pruner values must be >= 0")
+        if self.early_stopping_patience < 1:
+            raise ValueError("optuna.early_stopping.patience must be >= 1")
+        if self.early_stopping_min_delta < 0:
+            raise ValueError("optuna.early_stopping.min_delta must be >= 0")
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "OptunaConfig":
+        _check_keys("optuna", d, {"study_name", "storage", "n_trials", "timeout_seconds", "sampler_seed",
+                                  "pruner", "early_stopping", "final_checkpoint_dir", "search_space"})
+        _check_keys("optuna.pruner", d["pruner"], {"n_startup_trials", "n_warmup_epochs"})
+        _check_keys("optuna.early_stopping", d["early_stopping"], {"patience", "min_delta"})
+
+        def resolve(p: str) -> Path:
+            path = Path(p)
+            return path if path.is_absolute() else (base_dir / path).resolve()
+
+        timeout = d["timeout_seconds"]
+        return cls(
+            study_name=str(d["study_name"]),
+            storage_path=resolve(d["storage"]),
+            n_trials=int(d["n_trials"]),
+            timeout_seconds=None if timeout is None else float(timeout),
+            sampler_seed=int(d["sampler_seed"]),
+            pruner_startup_trials=int(d["pruner"]["n_startup_trials"]),
+            pruner_warmup_epochs=int(d["pruner"]["n_warmup_epochs"]),
+            early_stopping_patience=int(d["early_stopping"]["patience"]),
+            early_stopping_min_delta=float(d["early_stopping"]["min_delta"]),
+            final_checkpoint_dir=resolve(d["final_checkpoint_dir"]),
+            search_space=SearchSpaceConfig.from_dict(d["search_space"]),
+        )
+
+
 @dataclass(frozen=True)
 class Config:
     """Top-level project configuration."""
@@ -233,6 +373,7 @@ class Config:
     ann: ANNConfig
     training: TrainingConfig
     evaluation: EvaluationConfig
+    optuna: OptunaConfig
     source_path: Path
 
 
@@ -247,7 +388,7 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
-    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation"})
+    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation", "optuna"})
     _check_keys("model", raw["model"], {"ann"})
 
     device = str(raw["device"]).lower()
@@ -261,5 +402,6 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         ann=ANNConfig.from_dict(raw["model"]["ann"]),
         training=TrainingConfig.from_dict(raw["training"], base_dir=path.parent),
         evaluation=EvaluationConfig.from_dict(raw["evaluation"]),
+        optuna=OptunaConfig.from_dict(raw["optuna"], base_dir=path.parent),
         source_path=path,
     )

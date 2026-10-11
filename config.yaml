@@ -1,7 +1,7 @@
 # Project configuration — single source of truth for configurable values.
 #
-# Sections so far: data, model, training, evaluation. Optuna and federated
-# sections are added in later phases.
+# Sections so far: data, model, training, evaluation, optuna. The federated
+# section is added in a later phase.
 #
 # NOTE: model and training values below are untuned starting points, not
 # results of any search. Optuna (Phase 6) will search over them.
@@ -31,6 +31,9 @@ training:
   batch_size: 512          # training batch size (val/test use data.eval_batch_size)
   epochs: 20               # maximum epochs; early stopping may end training sooner
   grad_clip_norm: null     # max total gradient L2 norm; null disables clipping
+  class_weighting: none    # none (pos_weight = 1) | balanced (n_benign / n_attack of the training split)
+                           # | balanced_scaled (balanced x pos_weight_scale)
+  pos_weight_scale: 1.0    # used only by balanced_scaled
   early_stopping:
     metric: val_loss       # any per-epoch history key, e.g. val_loss (later: val_pr_auc)
     mode: min              # min = lower is better (losses); max = higher is better (PR-AUC, F1)
@@ -42,3 +45,38 @@ evaluation:
   default_threshold: 0.5        # decision threshold on P(attack) when none has been selected
   threshold_strategy: max_f1    # max_f1 | max_macro_f1 | target_recall | fixed (= default_threshold)
   target_recall: 0.99           # used only by target_recall: minimum attack recall to reach on validation
+
+optuna:
+  # Hyperparameter search for the CENTRALIZED ANN (core/optuna_search.py).
+  # Objective: validation PR-AUC (attack class), maximized. Each trial samples
+  # values for the model.ann and training sections above; anything not sampled
+  # keeps its value from those sections.
+  study_name: ann_centralized
+  storage: results/optuna/ann_centralized.db   # SQLite file, relative to this file
+  n_trials: 40                 # total finished trials (complete + pruned + failed); a resumed study continues up to this
+  timeout_seconds: null        # optional wall-clock limit for one invocation
+  sampler_seed: 42             # TPE sampler seed
+  pruner:                      # MedianPruner on per-epoch val_pr_auc
+    n_startup_trials: 5        # trials that are never pruned (build up the median first)
+    n_warmup_epochs: 2         # epochs before a trial can be pruned
+  early_stopping:              # per-trial early stopping on val_pr_auc (mode max)
+    patience: 3
+    min_delta: 0.0001
+  final_checkpoint_dir: models/ann_centralized_tuned   # retrained best config, relative to this file
+  search_space:                # [low, high] ranges or lists of choices
+    n_layers: [1, 4]                       # number of hidden layers
+    layer_size: [32, 512]                  # units per hidden layer (log scale, sampled per layer)
+    optimizer: [sgd, adam, adamw]
+    epochs: [5, 30]                        # max epochs; early stopping usually ends sooner
+    learning_rate: [0.0001, 0.01]          # log scale
+    batch_size: [256, 512, 1024, 2048]
+    dropout: [0.0, 0.5]
+    weight_decay: [0.000001, 0.01]         # lambda, log scale
+    batch_norm: [false, true]
+    momentum: [0.8, 0.99]                  # sampled only when optimizer is sgd
+    grad_clip: [false, true]               # whether clipping is enabled
+    grad_clip_norm: [0.5, 10.0]            # sampled only when clipping is enabled (log scale)
+    class_weighting: [none, balanced, balanced_scaled]
+    pos_weight_scale: [0.25, 4.0]          # sampled only for balanced_scaled (log scale)
+    # Not searched: activation function (ann.py implements ReLU only) and LR
+    # scheduler (none implemented). Add them here once they exist.
