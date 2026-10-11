@@ -191,6 +191,38 @@ class TrainingConfig:
         return d
 
 
+VALID_THRESHOLD_STRATEGIES = ("max_f1", "max_macro_f1", "target_recall", "fixed")
+
+
+@dataclass(frozen=True)
+class EvaluationConfig:
+    """Decision-threshold settings (see core/evaluate.py for how each strategy works)."""
+
+    default_threshold: float
+    threshold_strategy: str
+    target_recall: float  # used only by the target_recall strategy
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.default_threshold < 1.0:
+            raise ValueError(f"evaluation.default_threshold must be in (0, 1), got {self.default_threshold}")
+        if self.threshold_strategy not in VALID_THRESHOLD_STRATEGIES:
+            raise ValueError(
+                f"evaluation.threshold_strategy must be one of {VALID_THRESHOLD_STRATEGIES}, "
+                f"got {self.threshold_strategy!r}"
+            )
+        if not 0.0 < self.target_recall <= 1.0:
+            raise ValueError(f"evaluation.target_recall must be in (0, 1], got {self.target_recall}")
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "EvaluationConfig":
+        _check_keys("evaluation", d, {f for f in cls.__dataclass_fields__})
+        return cls(
+            default_threshold=float(d["default_threshold"]),
+            threshold_strategy=str(d["threshold_strategy"]).lower(),
+            target_recall=float(d["target_recall"]),
+        )
+
+
 @dataclass(frozen=True)
 class Config:
     """Top-level project configuration."""
@@ -200,6 +232,7 @@ class Config:
     data: DataConfig
     ann: ANNConfig
     training: TrainingConfig
+    evaluation: EvaluationConfig
     source_path: Path
 
 
@@ -214,7 +247,7 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
-    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training"})
+    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation"})
     _check_keys("model", raw["model"], {"ann"})
 
     device = str(raw["device"]).lower()
@@ -227,5 +260,6 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         data=DataConfig.from_dict(raw["data"], base_dir=path.parent),
         ann=ANNConfig.from_dict(raw["model"]["ann"]),
         training=TrainingConfig.from_dict(raw["training"], base_dir=path.parent),
+        evaluation=EvaluationConfig.from_dict(raw["evaluation"]),
         source_path=path,
     )

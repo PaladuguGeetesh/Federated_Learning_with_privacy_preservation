@@ -295,18 +295,44 @@ def load_centralized_data(
     )
 
 
+def load_raw_validation(
+    dataset_dir: Path, val_fraction: float, seed: int
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """The combined validation rows of all clients, unscaled (float64), with labels and feature names.
+
+    Same rows and order as load_centralized_data().val / combined_federated_validation(),
+    for applying a specific already-fitted scaler (e.g. one stored in a checkpoint).
+    """
+    X_parts, y_parts, names = [], [], None
+    for cid in CLIENT_IDS:
+        _, _, X_va, y_va, client_names = _load_raw_client_split(cid, dataset_dir, val_fraction, seed)
+        if names is not None and client_names != names:
+            raise ValueError(f"Client {cid} feature columns differ from earlier clients")
+        names = client_names
+        X_parts.append(X_va)
+        y_parts.append(y_va)
+    return np.concatenate(X_parts), np.concatenate(y_parts), names
+
+
 def load_test_set(
-    scaler: StandardScaler, expected_features: list[str], dataset_dir: Path
+    scaler: StandardScaler | None, expected_features: list[str], dataset_dir: Path
 ) -> SplitArrays:
-    """Load and scale the held-out test set with an already-fitted training scaler.
+    """Load the held-out test set, scaled with an already-fitted training scaler.
 
     Only the final, post-tuning evaluation should call this. Hyperparameter search
     and training code must never import or call it.
+
+    Args:
+        scaler: The fitted scaler from training. Pass None explicitly only for a
+            model trained on unscaled features (the Random Forest baseline);
+            features are then returned unscaled as float32 (sklearn trees use
+            float32 internally anyway).
     """
     X, y, names = split_features_labels(load_parquet(dataset_dir / TEST_FILENAME))
     if names != expected_features:
         raise ValueError("Test set feature columns do not match the training feature schema")
-    return SplitArrays(apply_scaler(scaler, X), y)
+    X_out = X.astype(np.float32) if scaler is None else apply_scaler(scaler, X)
+    return SplitArrays(X_out, y)
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # Project configuration — single source of truth for configurable values.
 #
-# Sections so far: data, model, training. Optuna and federated sections are
-# added in later phases.
+# Sections so far: data, model, training, evaluation. Optuna and federated
+# sections are added in later phases.
 #
 # NOTE: model and training values below are untuned starting points, not
 # results of any search. Optuna (Phase 6) will search over them.
@@ -37,3 +37,8 @@ training:
     patience: 3            # epochs without improvement before stopping
     min_delta: 0.0         # minimum change that counts as an improvement
   checkpoint_dir: models/ann_centralized   # best.pt + latest.pt, relative to this file
+
+evaluation:
+  default_threshold: 0.5        # decision threshold on P(attack) when none has been selected
+  threshold_strategy: max_f1    # max_f1 | max_macro_f1 | target_recall | fixed (= default_threshold)
+  target_recall: 0.99           # used only by target_recall: minimum attack recall to reach on validation
