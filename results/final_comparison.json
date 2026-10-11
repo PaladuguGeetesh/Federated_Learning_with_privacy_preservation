@@ -1,0 +1,26 @@
+[
+  {
+    "model":"Centralized RF",
+    "accuracy":0.9988372666,
+    "precision":0.9971857411,
+    "recall":0.9950965096,
+    "f1":0.9961400299,
+    "roc_auc":0.9999011265
+  },
+  {
+    "model":"Federated LR",
+    "accuracy":0.928855951,
+    "precision":0.6891208803,
+    "recall":0.9622134058,
+    "f1":0.803085547,
+    "roc_auc":0.9895267454
+  },
+  {
+    "model":"Federated MLP",
+    "accuracy":0.9915830649,
+    "precision":0.9538325286,
+    "recall":0.9921989926,
+    "f1":0.9726375587,
+    "roc_auc":0.9996837937
+  }
+]

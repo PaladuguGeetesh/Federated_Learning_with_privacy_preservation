@@ -1,0 +1,14 @@
+# Virtual environment
+venv/
+
+# Data and trained model artifacts (large, regenerable)
+dataset/
+models/
+
+# Python / tooling caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# macOS
+.DS_Store
