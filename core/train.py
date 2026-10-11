@@ -49,7 +49,7 @@ from core.dataset import (
 )
 from core.early_stopping import EarlyStopping
 
-# Computes extra per-epoch validation metrics, e.g. {"val_pr_auc": 0.97} (Phase 5/6).
+# Computes extra per-epoch validation metrics, e.g. {"val_pr_auc": ...} (core.evaluate.make_val_metrics_fn).
 ExtraMetricsFn = Callable[[nn.Module, DataLoader, torch.device], dict[str, float]]
 # Called with each finished epoch's history record (e.g. Optuna reporting/pruning).
 EpochCallback = Callable[[dict[str, Any]], None]

@@ -314,7 +314,7 @@ def main(argv: list[str] | None = None) -> None:
     if rounds < 1 or local_epochs < 1:
         raise SystemExit("--rounds and --local-epochs must be >= 1")
     checkpoint_dir = args.checkpoint_dir or (cfg.federated.checkpoint_dir / settings.model)
-    results_dir = args.results_dir or cfg.federated.results_dir
+    results_dir = args.results_dir or cfg.paths.results_dir
     run_federated(cfg, settings, rounds=rounds, local_epochs=local_epochs, checkpoint_dir=checkpoint_dir,
                   results_path=results_dir / f"federated_{settings.model}_validation_rounds.json",
                   overwrite=args.overwrite)

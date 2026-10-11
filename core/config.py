@@ -29,17 +29,39 @@ def _check_keys(section: str, given: dict[str, Any], expected: set[str]) -> None
         raise ValueError(f"config section {section!r} has unknown keys: {sorted(unknown)}")
 
 
+def _resolve(path: Any, base_dir: Path) -> Path:
+    """Resolve a config path relative to the config file's directory."""
+    p = Path(path)
+    return p if p.is_absolute() else (base_dir / p).resolve()
+
+
+@dataclass(frozen=True)
+class PathsConfig:
+    """Output locations shared by all pipelines."""
+
+    results_dir: Path
+    graphs_dir: Path
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "PathsConfig":
+        _check_keys("paths", d, {f for f in cls.__dataclass_fields__})
+        return cls(results_dir=_resolve(d["results_dir"], base_dir), graphs_dir=_resolve(d["graphs_dir"], base_dir))
+
+
 @dataclass(frozen=True)
 class DataConfig:
     """Data split and DataLoader settings."""
 
     dataset_dir: Path
+    test_size: float  # only used to create train/test.parquet if they are missing
     val_fraction: float
     eval_batch_size: int
     num_workers: int
     pin_memory: bool
 
     def __post_init__(self) -> None:
+        if not 0.0 < self.test_size < 1.0:
+            raise ValueError(f"data.test_size must be in (0, 1), got {self.test_size}")
         if not 0.0 < self.val_fraction < 1.0:
             raise ValueError(f"data.val_fraction must be in (0, 1), got {self.val_fraction}")
         if self.eval_batch_size < 1:
@@ -50,11 +72,9 @@ class DataConfig:
     @classmethod
     def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "DataConfig":
         _check_keys("data", d, {f for f in cls.__dataclass_fields__})
-        dataset_dir = Path(d["dataset_dir"])
-        if not dataset_dir.is_absolute():
-            dataset_dir = (base_dir / dataset_dir).resolve()
         return cls(
-            dataset_dir=dataset_dir,
+            dataset_dir=_resolve(d["dataset_dir"], base_dir),
+            test_size=float(d["test_size"]),
             val_fraction=float(d["val_fraction"]),
             eval_batch_size=int(d["eval_batch_size"]),
             num_workers=int(d["num_workers"]),
@@ -176,9 +196,6 @@ class TrainingConfig:
     @classmethod
     def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "TrainingConfig":
         _check_keys("training", d, {f for f in cls.__dataclass_fields__})
-        checkpoint_dir = Path(d["checkpoint_dir"])
-        if not checkpoint_dir.is_absolute():
-            checkpoint_dir = (base_dir / checkpoint_dir).resolve()
         clip = d["grad_clip_norm"]
         return cls(
             optimizer=str(d["optimizer"]).lower(),
@@ -192,7 +209,7 @@ class TrainingConfig:
             class_weighting=str(d["class_weighting"]).lower(),
             pos_weight_scale=float(d["pos_weight_scale"]),
             early_stopping=EarlyStoppingConfig.from_dict(d["early_stopping"]),
-            checkpoint_dir=checkpoint_dir,
+            checkpoint_dir=_resolve(d["checkpoint_dir"], base_dir),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -343,14 +360,10 @@ class OptunaConfig:
         _check_keys("optuna.pruner", d["pruner"], {"n_startup_trials", "n_warmup_epochs"})
         _check_keys("optuna.early_stopping", d["early_stopping"], {"patience", "min_delta"})
 
-        def resolve(p: str) -> Path:
-            path = Path(p)
-            return path if path.is_absolute() else (base_dir / path).resolve()
-
         timeout = d["timeout_seconds"]
         return cls(
             study_name=str(d["study_name"]),
-            storage_path=resolve(d["storage"]),
+            storage_path=_resolve(d["storage"], base_dir),
             n_trials=int(d["n_trials"]),
             timeout_seconds=None if timeout is None else float(timeout),
             sampler_seed=int(d["sampler_seed"]),
@@ -358,8 +371,60 @@ class OptunaConfig:
             pruner_warmup_epochs=int(d["pruner"]["n_warmup_epochs"]),
             early_stopping_patience=int(d["early_stopping"]["patience"]),
             early_stopping_min_delta=float(d["early_stopping"]["min_delta"]),
-            final_checkpoint_dir=resolve(d["final_checkpoint_dir"]),
+            final_checkpoint_dir=_resolve(d["final_checkpoint_dir"], base_dir),
             search_space=SearchSpaceConfig.from_dict(d["search_space"]),
+        )
+
+
+VALID_RF_CLASS_WEIGHTS = ("balanced", "balanced_subsample", None)
+
+
+@dataclass(frozen=True)
+class RandomForestConfig:
+    """Hyperparameters for the centralized Random Forest (passed to RandomForestClassifier)."""
+
+    n_estimators: int
+    max_depth: int | None
+    class_weight: str | None
+    random_state: int
+    n_jobs: int
+
+    def __post_init__(self) -> None:
+        if self.n_estimators < 1:
+            raise ValueError(f"random_forest.hyperparameters.n_estimators must be >= 1, got {self.n_estimators}")
+        if self.max_depth is not None and self.max_depth < 1:
+            raise ValueError(f"random_forest.hyperparameters.max_depth must be null or >= 1, got {self.max_depth}")
+        if self.class_weight not in VALID_RF_CLASS_WEIGHTS:
+            raise ValueError(f"random_forest.hyperparameters.class_weight must be one of {VALID_RF_CLASS_WEIGHTS}, "
+                             f"got {self.class_weight!r}")
+        if self.n_jobs == 0:
+            raise ValueError("random_forest.hyperparameters.n_jobs must be non-zero (-1 = all cores)")
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class RandomForestSection:
+    """random_forest section: model output path + hyperparameters (random_state comes from the global seed)."""
+
+    model_path: Path
+    hyperparameters: RandomForestConfig
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], base_dir: Path, seed: int) -> "RandomForestSection":
+        _check_keys("random_forest", d, {"model_path", "hyperparameters"})
+        h = d["hyperparameters"]
+        _check_keys("random_forest.hyperparameters", h, {"n_estimators", "max_depth", "class_weight", "n_jobs"})
+        return cls(
+            model_path=_resolve(d["model_path"], base_dir),
+            hyperparameters=RandomForestConfig(
+                n_estimators=int(h["n_estimators"]),
+                max_depth=None if h["max_depth"] is None else int(h["max_depth"]),
+                class_weight=None if h["class_weight"] is None else str(h["class_weight"]),
+                random_state=seed,
+                n_jobs=int(h["n_jobs"]),
+            ),
         )
 
 
@@ -377,7 +442,6 @@ class FederatedConfig:
     client_device: str
     client_num_cpus: int
     checkpoint_dir: Path
-    results_dir: Path
 
     def __post_init__(self) -> None:
         if self.model not in VALID_FEDERATED_MODELS:
@@ -395,19 +459,14 @@ class FederatedConfig:
     def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "FederatedConfig":
         _check_keys("federated", d, {f for f in cls.__dataclass_fields__})
 
-        def resolve(p: str) -> Path:
-            path = Path(p)
-            return path if path.is_absolute() else (base_dir / path).resolve()
-
         return cls(
             model=str(d["model"]).lower(),
-            ann_hyperparameters=resolve(d["ann_hyperparameters"]),
+            ann_hyperparameters=_resolve(d["ann_hyperparameters"], base_dir),
             rounds=int(d["rounds"]),
             local_epochs=int(d["local_epochs"]),
             client_device=str(d["client_device"]).lower(),
             client_num_cpus=int(d["client_num_cpus"]),
-            checkpoint_dir=resolve(d["checkpoint_dir"]),
-            results_dir=resolve(d["results_dir"]),
+            checkpoint_dir=_resolve(d["checkpoint_dir"], base_dir),
         )
 
 
@@ -417,10 +476,12 @@ class Config:
 
     seed: int
     device: str
+    paths: PathsConfig
     data: DataConfig
     ann: ANNConfig
     training: TrainingConfig
     evaluation: EvaluationConfig
+    random_forest: RandomForestSection
     optuna: OptunaConfig
     federated: FederatedConfig
     source_path: Path
@@ -437,20 +498,24 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
-    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation", "optuna", "federated"})
+    _check_keys("<root>", raw, {"seed", "device", "paths", "data", "model", "training", "evaluation",
+                                "random_forest", "optuna", "federated"})
     _check_keys("model", raw["model"], {"ann"})
 
     device = str(raw["device"]).lower()
     if device not in VALID_DEVICES:
         raise ValueError(f"device must be one of {VALID_DEVICES}, got {raw['device']!r}")
 
+    seed = int(raw["seed"])
     return Config(
-        seed=int(raw["seed"]),
+        seed=seed,
         device=device,
+        paths=PathsConfig.from_dict(raw["paths"], base_dir=path.parent),
         data=DataConfig.from_dict(raw["data"], base_dir=path.parent),
         ann=ANNConfig.from_dict(raw["model"]["ann"]),
         training=TrainingConfig.from_dict(raw["training"], base_dir=path.parent),
         evaluation=EvaluationConfig.from_dict(raw["evaluation"]),
+        random_forest=RandomForestSection.from_dict(raw["random_forest"], base_dir=path.parent, seed=seed),
         optuna=OptunaConfig.from_dict(raw["optuna"], base_dir=path.parent),
         federated=FederatedConfig.from_dict(raw["federated"], base_dir=path.parent),
         source_path=path,

@@ -1,58 +1,44 @@
-# results/print_final_metrics.py
-import json
+"""
+Prints each model's held-out test result using core.evaluate's report format,
+followed by a compact side-by-side table. Read-only.
 
-MODELS = [
-    ("Centralized RF", "results/centralized_rf_metrics.json", None),
-    ("Federated LR", "results/federated_lr_metrics.json", -1),
-    ("Federated MLP", "results/federated_mlp_metrics.json", -1),
-]
+Run from the project root:
+    python -m results.print_final_metrics
+"""
 
-# canonical name -> acceptable key variants (checked case-insensitively)
-METRIC_ALIASES = {
-    "accuracy": ["accuracy"],
-    "precision": ["precision"],
-    "recall": ["recall"],
-    "f1": ["f1", "f1_score", "f1score"],
-    "roc_auc": ["roc_auc", "rocauc", "auc"],
-}
+import argparse
+from pathlib import Path
 
-def load_metrics(path, index):
-    with open(path) as f:
-        data = json.load(f)
-    record = data if index is None else data[index]
-    # Single-record files (e.g. the centralized RF file) nest the actual
-    # metric values one level down under a "metrics" key rather than at
-    # the top level — unwrap that here if present.
-    if isinstance(record, dict) and "metrics" in record and isinstance(record["metrics"], dict):
-        record = record["metrics"]
-    return record
+from core.config import DEFAULT_CONFIG_PATH, load_config
+from results.sources import load_test_metrics, load_test_payload
 
-def get_metric(record, canonical_name):
-    lower_record = {k.lower(): v for k, v in record.items()}
-    for variant in METRIC_ALIASES[canonical_name]:
-        if variant.lower() in lower_record:
-            return lower_record[variant.lower()]
-    raise KeyError(f"None of {METRIC_ALIASES[canonical_name]} found in keys: {list(record.keys())}")
+TABLE_COLUMNS = ["accuracy", "precision", "recall", "f1", "macro_f1", "roc_auc", "pr_auc", "fpr"]
 
-rows = []
-for name, path, index in MODELS:
-    m = load_metrics(path, index)
-    rows.append((name, [get_metric(m, k) for k in METRIC_ALIASES]))
 
-col_w = 14
-labels = list(METRIC_ALIASES.keys())
-header = f"{'Model':<20}" + "".join(f"{lbl.capitalize():>{col_w}}" for lbl in labels)
-print("=" * len(header))
-print("FINAL MODEL METRICS")
-print("=" * len(header))
-print(header)
-print("-" * len(header))
-for name, values in rows:
-    print(f"{name:<20}" + "".join(f"{v:>{col_w}.4f}" for v in values))
-print("=" * len(header))
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Print the held-out test results")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    args = parser.parse_args(argv)
+    results_dir = load_config(args.config).paths.results_dir
 
-rf_acc = rows[0][1][0]
-print("\nGap to centralized RF ceiling (accuracy):")
-for name, values in rows[1:]:
-    gap = (rf_acc - values[0]) * 100
-    print(f"  {name}: {gap:.2f} percentage points behind")
+    metrics = load_test_metrics(results_dir)
+    for name, m in metrics.items():
+        payload = load_test_payload(results_dir, name)
+        selection = payload.get("threshold_selection")
+        how = (f"threshold selected on validation ({selection['strategy']})" if selection
+               else "fixed default threshold")
+        print(m.format_report(f"{name} — held-out test, {how}"))
+        print()
+
+    width = 26
+    header = f"{'Model':<{width}}" + "".join(f"{c:>11}" for c in TABLE_COLUMNS) + f"{'missed':>9}{'false+':>9}"
+    print(header)
+    print("-" * len(header))
+    for name, m in metrics.items():
+        values = "".join(f"{getattr(m, c):>11.4f}" for c in TABLE_COLUMNS)
+        print(f"{name:<{width}}{values}{m.fn:>9,}{m.fp:>9,}")
+    print("\n(RF pr_auc is nan: its original test evaluation did not record PR-AUC.)")
+
+
+if __name__ == "__main__":
+    main()

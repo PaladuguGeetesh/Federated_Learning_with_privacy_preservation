@@ -3,7 +3,7 @@ Early stopping on a monitored validation metric.
 
 Supports both directions explicitly:
     mode="min"  lower is better   (e.g. val_loss)
-    mode="max"  higher is better  (e.g. val_pr_auc, val_f1 — Phase 6's objective)
+    mode="max"  higher is better  (e.g. val_pr_auc — the Optuna objective — or val_f1)
 
 An epoch counts as an improvement only if it beats the best value so far by
 more than min_delta. Training should stop once `patience` consecutive epochs

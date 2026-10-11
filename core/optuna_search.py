@@ -71,7 +71,6 @@ from core.evaluate import evaluate_on_test, make_val_metrics_fn, predict_proba, 
 from core.train import TrainingDivergedError, compute_pos_weight, fit, set_seed, train_drop_last
 
 OBJECTIVE_METRIC = "val_pr_auc"
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 BEST_PARAMS_FILENAME = "best_hyperparameters.json"
 FINAL_METRICS_FILENAME = "ann_centralized_metrics.json"
 
@@ -450,7 +449,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--n-trials", type=int, default=None, help="target number of finished trials (default: optuna.n_trials)")
     parser.add_argument("--storage", type=Path, default=None, help="SQLite file (default: optuna.storage)")
-    parser.add_argument("--results-dir", type=Path, default=RESULTS_DIR)
+    parser.add_argument("--results-dir", type=Path, default=None, help="default: paths.results_dir")
     parser.add_argument("--final-test", action="store_true",
                         help="after the study: retrain the best config once and evaluate it on the test set once")
     parser.add_argument("--overwrite", action="store_true", help="allow redoing the final retrain + test evaluation")
@@ -461,8 +460,9 @@ def main(argv: list[str] | None = None) -> None:
     if n_trials < 1:
         raise SystemExit("--n-trials must be >= 1")
     storage_path = (args.storage or cfg.optuna.storage_path).resolve()
+    results_dir = args.results_dir or cfg.paths.results_dir
 
-    final_out = args.results_dir / FINAL_METRICS_FILENAME
+    final_out = results_dir / FINAL_METRICS_FILENAME
     if args.final_test and final_out.exists() and not args.overwrite:
         raise SystemExit(f"{final_out} already exists — the final test evaluation has already been run.")
 
@@ -477,10 +477,10 @@ def main(argv: list[str] | None = None) -> None:
     if counts["complete"] == 0:
         raise SystemExit("No trial completed (all pruned/failed); nothing to save.")
     print(f"Best trial #{study.best_trial.number}: {OBJECTIVE_METRIC}={study.best_value:.5f}")
-    save_best_hyperparameters(study, cfg, prepared.data.train.y, storage_path, args.results_dir)
+    save_best_hyperparameters(study, cfg, prepared.data.train.y, storage_path, results_dir)
 
     if args.final_test:
-        final_retrain_and_test(study, prepared, cfg, device, args.results_dir, overwrite=args.overwrite)
+        final_retrain_and_test(study, prepared, cfg, device, results_dir, overwrite=args.overwrite)
     else:
         print("Skipping the final retrain + test evaluation (pass --final-test once tuning is complete).")
 

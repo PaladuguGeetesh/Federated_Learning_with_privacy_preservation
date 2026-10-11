@@ -79,6 +79,6 @@
     "All rows: same held-out test set (dataset/test.parquet), each evaluated once.",
     "ANN/LR thresholds were selected on validation (max attack-F1); RF uses its default 0.5.",
     "RF was trained on all of train.parquet; the ANN/LR models on the same rows minus the 10% validation slices.",
-    "RF PR-AUC was not recorded by train_rf.py; its FPR/FN/macro-F1 are recovered from its stored metrics."
+    "RF PR-AUC was not recorded by the RF's original test evaluation; its FPR/FN/macro-F1 are recovered from its stored metrics."
   ]
 }

@@ -1,46 +1,36 @@
 """
-IID federated data partitioning for 3 simulated client organizations.
+IID federated data partitioning for the 3 simulated client organizations.
 
-Loads dataset/train.parquet only and performs a stratified 3-way split on
-the 'label' column into roughly equal-sized, similarly-distributed partitions
-(Client A, B, C), saved as dataset/client_A.parquet, client_B.parquet, and
-client_C.parquet. No scaling is applied here — that happens per-client inside
-the Flower client code in a later step.
+Loads <data.dataset_dir>/train.parquet only (never the test set) and performs
+a stratified 3-way split on the label into roughly equal-sized, similarly
+distributed partitions, saved as client_A.parquet, client_B.parquet and
+client_C.parquet. No scaling is applied here: each client fits its own scaler
+on its own training rows (core.dataset.load_client_data).
+
+Run from the project root (once, after centralized.train_rf has created the split):
+    python -m federated.partition_data              # refuses to overwrite existing client files
+    python -m federated.partition_data --overwrite
 """
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-RANDOM_STATE = 42
-LABEL_COL = "label"
+from core.config import DEFAULT_CONFIG_PATH, load_config
+from core.dataset import CLIENT_IDS, LABEL_COL, client_path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-TRAIN_PATH = BASE_DIR / "dataset" / "train.parquet"
-CLIENT_PATHS = {
-    "A": BASE_DIR / "dataset" / "client_A.parquet",
-    "B": BASE_DIR / "dataset" / "client_B.parquet",
-    "C": BASE_DIR / "dataset" / "client_C.parquet",
-}
+TRAIN_FILENAME = "train.parquet"
 
 
-def partition_iid(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+def partition_iid(df: pd.DataFrame, seed: int) -> dict[str, pd.DataFrame]:
+    """Stratified split into len(CLIENT_IDS) == 3 equal-sized partitions."""
     # Split off Client A (~1/3), stratified on label.
-    client_a, remainder = train_test_split(
-        df,
-        test_size=2 / 3,
-        stratify=df[LABEL_COL],
-        random_state=RANDOM_STATE,
-    )
+    client_a, remainder = train_test_split(df, test_size=2 / 3, stratify=df[LABEL_COL], random_state=seed)
     # Split the remaining 2/3 evenly into Client B and Client C.
-    client_b, client_c = train_test_split(
-        remainder,
-        test_size=0.5,
-        stratify=remainder[LABEL_COL],
-        random_state=RANDOM_STATE,
-    )
-    return {"A": client_a, "B": client_b, "C": client_c}
+    client_b, client_c = train_test_split(remainder, test_size=0.5, stratify=remainder[LABEL_COL], random_state=seed)
+    return dict(zip(CLIENT_IDS, (client_a, client_b, client_c)))
 
 
 def print_summary(partitions: dict[str, pd.DataFrame]) -> None:
@@ -49,23 +39,34 @@ def print_summary(partitions: dict[str, pd.DataFrame]) -> None:
     print("-" * len(header))
     for name, df in partitions.items():
         rows = len(df)
-        benign = int((df[LABEL_COL] == 0).sum())
         attack = int((df[LABEL_COL] == 1).sum())
-        attack_pct = attack / rows * 100
-        print(f"{name:<8}{rows:>10,}{benign:>12,}{attack:>12,}{attack_pct:>11.2f}%")
+        print(f"{name:<8}{rows:>10,}{rows - attack:>12,}{attack:>12,}{attack / rows * 100:>11.2f}%")
 
 
-def main() -> None:
-    df = pd.read_parquet(TRAIN_PATH)
-    print(f"Loaded {TRAIN_PATH}: {df.shape[0]:,} rows, {df.shape[1]} columns")
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Partition train.parquet into client A/B/C files")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--overwrite", action="store_true", help="replace existing client files")
+    args = parser.parse_args(argv)
 
-    partitions = partition_iid(df)
+    cfg = load_config(args.config)
+    dataset_dir = cfg.data.dataset_dir
+    existing = [client_path(cid, dataset_dir) for cid in CLIENT_IDS if client_path(cid, dataset_dir).exists()]
+    if existing and not args.overwrite:
+        raise SystemExit(f"Client files already exist ({', '.join(p.name for p in existing)}). "
+                         f"Pass --overwrite to regenerate them.")
 
-    for name, client_df in partitions.items():
-        path = CLIENT_PATHS[name]
+    train_path = dataset_dir / TRAIN_FILENAME
+    if not train_path.exists():
+        raise FileNotFoundError(f"{train_path} not found — run python -m centralized.train_rf first (it creates the split)")
+    df = pd.read_parquet(train_path)
+    print(f"Loaded {train_path}: {df.shape[0]:,} rows, {df.shape[1]} columns")
+
+    partitions = partition_iid(df, cfg.seed)
+    for cid, client_df in partitions.items():
+        path = client_path(cid, dataset_dir)
         client_df.to_parquet(path, index=False)
-        print(f"Saved Client {name} partition to {path}: {client_df.shape[0]:,} rows")
-
+        print(f"Saved Client {cid} partition to {path}: {client_df.shape[0]:,} rows")
     print()
     print_summary(partitions)
 

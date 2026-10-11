@@ -1,15 +1,25 @@
 # Project configuration — single source of truth for configurable values.
 #
-# Sections: data, model, training, evaluation, optuna, federated.
+# Sections: paths, data, model, training, evaluation, random_forest, optuna, federated.
+# Every section is validated strictly by core/config.py: unknown keys and
+# out-of-range values are rejected. Relative paths are relative to this file.
 #
-# NOTE: model and training values below are untuned starting points, not
-# results of any search. Optuna (Phase 6) will search over them.
+# model.ann and training hold UNTUNED defaults used by a plain
+# `python -m core.train` run. The tuned centralized ANN configuration found by
+# Optuna is stored in results/best_hyperparameters.json (and is what the
+# federated ANN uses) — this file is not overwritten by the search.
 
-seed: 42          # global seed (data splits, DataLoader shuffling, weight init)
+seed: 42          # global seed (data splits, DataLoader shuffling, weight init, RF random_state)
 device: auto      # auto (cuda > mps > cpu) | cuda | mps | cpu
 
+paths:
+  results_dir: results     # metrics JSON, comparison tables, Optuna study
+  graphs_dir: graphs       # generated plots
+
 data:
-  dataset_dir: dataset     # relative to this file's directory
+  dataset_dir: dataset     # cleaned_data / train / test / client_{A,B,C} parquet files
+  test_size: 0.2           # train/test split fraction — used ONLY if train/test.parquet are missing;
+                           # an existing held-out test set is never re-split
   val_fraction: 0.1        # stratified validation slice taken from each client file
   eval_batch_size: 4096    # batch size for validation/test loaders (no gradients)
   num_workers: 0           # DataLoader worker processes (0 = load in main process)
@@ -34,16 +44,25 @@ training:
                            # | balanced_scaled (balanced x pos_weight_scale)
   pos_weight_scale: 1.0    # used only by balanced_scaled
   early_stopping:
-    metric: val_loss       # any per-epoch history key, e.g. val_loss (later: val_pr_auc)
+    metric: val_loss       # any per-epoch history key: val_loss, or val_pr_auc / val_f1 when those are computed
     mode: min              # min = lower is better (losses); max = higher is better (PR-AUC, F1)
     patience: 3            # epochs without improvement before stopping
     min_delta: 0.0         # minimum change that counts as an improvement
-  checkpoint_dir: models/ann_centralized   # best.pt + latest.pt, relative to this file
+  checkpoint_dir: models/ann_centralized   # best.pt + latest.pt
 
 evaluation:
   default_threshold: 0.5        # decision threshold on P(attack) when none has been selected
   threshold_strategy: max_f1    # max_f1 | max_macro_f1 | target_recall | fixed (= default_threshold)
   target_recall: 0.99           # used only by target_recall: minimum attack recall to reach on validation
+
+random_forest:
+  # Centralized RF baseline (centralized/train_rf.py). random_state = seed.
+  model_path: models/rf_baseline.joblib
+  hyperparameters:
+    n_estimators: 200
+    max_depth: null              # null = grow trees fully
+    class_weight: balanced       # balanced | balanced_subsample | null
+    n_jobs: -1                   # -1 = all cores
 
 optuna:
   # Hyperparameter search for the CENTRALIZED ANN (core/optuna_search.py).
@@ -51,7 +70,7 @@ optuna:
   # values for the model.ann and training sections above; anything not sampled
   # keeps its value from those sections.
   study_name: ann_centralized
-  storage: results/optuna/ann_centralized.db   # SQLite file, relative to this file
+  storage: results/optuna/ann_centralized.db   # SQLite file
   n_trials: 40                 # total finished trials (complete + pruned + failed); a resumed study continues up to this
   timeout_seconds: null        # optional wall-clock limit for one invocation
   sampler_seed: 42             # TPE sampler seed
@@ -61,7 +80,7 @@ optuna:
   early_stopping:              # per-trial early stopping on val_pr_auc (mode max)
     patience: 3
     min_delta: 0.0001
-  final_checkpoint_dir: models/ann_centralized_tuned   # retrained best config, relative to this file
+  final_checkpoint_dir: models/ann_centralized_tuned   # retrained best config
   search_space:                # [low, high] ranges or lists of choices
     n_layers: [1, 4]                       # number of hidden layers
     layer_size: [32, 512]                  # units per hidden layer (log scale, sampled per layer)
@@ -82,16 +101,15 @@ optuna:
 
 federated:
   # Federated simulation (Flower, FedAvg) across clients A, B, C — federated/server.py.
-  model: ann                   # ann | logistic_regression
+  model: ann                   # ann | logistic_regression (overridable with --model)
   # For model: ann, the architecture AND local-training settings (optimizer, lr,
   # weight decay, batch size, clipping, class weighting) come from this Optuna
   # result for the CENTRALIZED ANN — not from model.ann / training above.
-  # Centralized-tuned values must be re-validated under federated training.
   # For model: logistic_regression, local training uses the training section above.
   ann_hyperparameters: results/best_hyperparameters.json
   rounds: 15                   # communication rounds
-  local_epochs: 3              # epochs each client trains per round
+  local_epochs: 3              # epochs each client trains per round (1 was tried: smoother but lower val PR-AUC after 15 rounds)
   client_device: cpu           # device inside each simulated client process (cpu | mps | cuda | auto)
   client_num_cpus: 2           # CPU cores reserved per simulated client (also torch threads)
   checkpoint_dir: models/federated   # <dir>/<model>/best.pt (best round by val PR-AUC) and latest.pt
-  results_dir: results               # writes federated_<model>_validation_rounds.json
+  # Per-round validation results go to <paths.results_dir>/federated_<model>_validation_rounds.json

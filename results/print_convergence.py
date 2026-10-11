@@ -1,88 +1,50 @@
 """
-Round-by-round convergence summary for the federated models.
+Round-by-round convergence summary of the federated runs (VALIDATION data only).
 
-Loads results/centralized_rf_metrics.json (reference ceiling accuracy) and,
-for each of results/federated_lr_metrics.json and
-results/federated_mlp_metrics.json, prints the full round-by-round metrics
-table plus milestone lines (first round to cross 90/95/98% accuracy, total
-accuracy gain from round 1 to the final round, and the final gap to the RF
-ceiling).
+For each federated model: the per-round validation table written by
+federated/server.py, plus milestones (first round reaching given validation
+PR-AUC levels) and the gap to the centralized tuned ANN's best validation
+PR-AUC — measured on the same validation rows with the same scaling, so the
+gap is like-for-like. Threshold-dependent columns use the default 0.5
+threshold that the server scores each round with. Read-only.
 
-Read-only: does not modify any existing results files.
+Run from the project root:
+    python -m results.print_convergence
 """
 
-import json
+import argparse
 from pathlib import Path
 
-import pandas as pd
+from core.config import DEFAULT_CONFIG_PATH, load_config
+from results.sources import centralized_ann_best_val_pr_auc, load_round_histories
 
-BASE_DIR = Path(__file__).resolve().parent
-RF_METRICS_PATH = BASE_DIR / "centralized_rf_metrics.json"
-
-MODELS = [
-    ("Federated LR", BASE_DIR / "federated_lr_metrics.json"),
-    ("Federated MLP", BASE_DIR / "federated_mlp_metrics.json"),
-]
-
-MILESTONE_THRESHOLDS = [0.90, 0.95, 0.98]
-TABLE_COLUMNS = ["round", "accuracy", "precision", "recall", "f1", "roc_auc", "gap_to_rf_pp"]
+TABLE_COLUMNS = ["round", "val_loss", "val_pr_auc", "val_macro_f1", "val_attack_recall", "val_false_negatives", "val_fpr"]
+PR_AUC_MILESTONES = [0.95, 0.99, 0.995]
 
 
-def load_rf_accuracy() -> float:
-    with open(RF_METRICS_PATH) as f:
-        data = json.load(f)
-    return data["metrics"]["accuracy"]
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Print federated validation convergence")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    args = parser.parse_args(argv)
+    results_dir = load_config(args.config).paths.results_dir
 
+    reference = centralized_ann_best_val_pr_auc(results_dir)
+    print(f"Centralized tuned ANN, best validation PR-AUC: {reference:.5f}\n")
 
-def load_rounds_df(path: Path, rf_accuracy: float) -> pd.DataFrame:
-    with open(path) as f:
-        records = json.load(f)
-
-    df = pd.DataFrame(records)
-    df = df.rename(columns={"f1_score": "f1"})
-    df["gap_to_rf_pp"] = (rf_accuracy - df["accuracy"]) * 100
-    df = df.sort_values("round").reset_index(drop=True)
-    return df
-
-
-def print_table(model_name: str, df: pd.DataFrame) -> None:
-    header = f"{model_name} — Round-by-Round Convergence"
-    print(header)
-    print("-" * len(header))
-    print(df[TABLE_COLUMNS].to_string(index=False, float_format=lambda v: f"{v:.4f}"))
-    print()
-
-
-def print_milestones(df: pd.DataFrame) -> None:
-    for threshold in MILESTONE_THRESHOLDS:
-        reached = df[df["accuracy"] >= threshold]
-        if reached.empty:
-            print(f"  Never reached {threshold * 100:.0f}% accuracy")
-        else:
-            first_round = int(reached.iloc[0]["round"])
-            print(f"  First reached {threshold * 100:.0f}% accuracy at round {first_round}")
-
-    round1 = df[df["round"] == 1]
-    final_row = df.loc[df["round"].idxmax()]
-    if not round1.empty:
-        gain_pp = (final_row["accuracy"] - round1.iloc[0]["accuracy"]) * 100
-        print(f"  Accuracy gain (round 1 -> round {int(final_row['round'])}): {gain_pp:+.4f} pp")
-    else:
-        print("  Accuracy gain (round 1 -> final): round 1 not found")
-
-    print(f"  Final gap to RF ceiling: {final_row['gap_to_rf_pp']:.4f} pp")
-    print()
-
-
-def main() -> None:
-    rf_accuracy = load_rf_accuracy()
-    print(f"Centralized RF reference accuracy (ceiling): {rf_accuracy:.4f}")
-    print()
-
-    for model_name, path in MODELS:
-        df = load_rounds_df(path, rf_accuracy)
-        print_table(model_name, df)
-        print_milestones(df)
+    for name, df in load_round_histories(results_dir).items():
+        title = (f"{name} — {df.attrs['rounds']} rounds x {df.attrs['local_epochs']} local epochs "
+                 f"({df.attrs['wall_clock_seconds']:.0f}s), validation set")
+        print(title)
+        print("-" * len(title))
+        print(df[TABLE_COLUMNS].to_string(index=False, float_format=lambda v: f"{v:.5f}"))
+        trained = df[df["round"] > 0]
+        for level in PR_AUC_MILESTONES:
+            reached = trained[trained["val_pr_auc"] >= level]
+            where = f"round {int(reached.iloc[0]['round'])}" if len(reached) else "never"
+            print(f"  First round with val PR-AUC >= {level}: {where}")
+        best = trained.loc[trained["val_pr_auc"].idxmax()]
+        print(f"  Best round (val PR-AUC): {int(best['round'])} — {best['val_pr_auc']:.5f}; "
+              f"gap to centralized ANN: {(reference - best['val_pr_auc']) * 100:+.3f} pp\n")
 
 
 if __name__ == "__main__":

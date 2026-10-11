@@ -17,7 +17,7 @@ If batch_norm is enabled, each block's BatchNorm1d holds trainable parameters
 (bn.weight, bn.bias) AND non-trainable running-statistics buffers
 (bn.running_mean, bn.running_var, bn.num_batches_tracked). Both appear in
 state_dict(), but only the former appear in parameters(). Federated
-aggregation must treat the buffers separately (handled in Phase 7).
+aggregation must treat the buffers separately (see federated/aggregation.py).
 """
 
 import torch

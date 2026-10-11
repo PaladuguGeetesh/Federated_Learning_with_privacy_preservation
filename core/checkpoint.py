@@ -143,7 +143,7 @@ class Checkpoint:
     early_stopping_state: dict[str, Any] | None = None
     rng_state: dict[str, Any] | None = None
     scaler_state: dict[str, Any] | None = None  # see scaler_to_state()
-    # Free-form extras, e.g. the hyperparameters Optuna selected (Phase 6).
+    # Free-form extras, e.g. the hyperparameters Optuna selected.
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property

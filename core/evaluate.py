@@ -47,8 +47,6 @@ from core.checkpoint import load_checkpoint
 from core.config import DEFAULT_CONFIG_PATH, EvaluationConfig, load_config
 from core.dataset import apply_scaler, get_device, load_raw_validation, load_test_set, to_device
 
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
-
 
 # ---------------------------------------------------------------------------
 # 1. Scoring
@@ -159,6 +157,47 @@ class BinaryMetrics:
         """[[tn, fp], [fn, tp]] — rows = actual (benign, attack), cols = predicted (sklearn layout)."""
         return [[self.tn, self.fp], [self.fn, self.tp]]
 
+    @classmethod
+    def from_counts(
+        cls, *, tp: int, fp: int, tn: int, fn: int, threshold: float, roc_auc: float, pr_auc: float
+    ) -> "BinaryMetrics":
+        """Build every threshold-dependent metric from confusion counts (the single place
+        this arithmetic lives). roc_auc / pr_auc are threshold-free and passed in."""
+        counts = {"tp": tp, "fp": fp, "tn": tn, "fn": fn}
+        if any(int(v) != v or v < 0 for v in counts.values()):
+            raise ValueError(f"Confusion counts must be non-negative integers, got {counts}")
+        n = tp + fp + tn + fn
+        if n == 0:
+            raise ValueError("Confusion counts sum to zero")
+        f1_attack = _safe_div(2 * tp, 2 * tp + fp + fn)
+        f1_benign = _safe_div(2 * tn, 2 * tn + fn + fp)
+        return cls(
+            threshold=float(threshold),
+            n_samples=n,
+            n_attack=tp + fn,
+            n_benign=tn + fp,
+            tp=tp,
+            fp=fp,
+            tn=tn,
+            fn=fn,
+            accuracy=_safe_div(tp + tn, n),
+            precision=_safe_div(tp, tp + fp),
+            recall=_safe_div(tp, tp + fn),
+            f1=f1_attack,
+            macro_f1=(f1_attack + f1_benign) / 2,
+            specificity=_safe_div(tn, tn + fp),
+            fpr=_safe_div(fp, fp + tn),
+            fnr=_safe_div(fn, fn + tp),
+            roc_auc=float(roc_auc),
+            pr_auc=float(pr_auc),
+        )
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "BinaryMetrics":
+        """Inverse of to_dict() (e.g. a saved test_metrics block); derived keys are recomputed."""
+        return cls.from_counts(tp=d["tp"], fp=d["fp"], tn=d["tn"], fn=d["fn"], threshold=d["threshold"],
+                               roc_auc=d["roc_auc"], pr_auc=d["pr_auc"])
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["attack_recall"] = self.attack_recall
@@ -209,34 +248,13 @@ def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float) ->
     threshold = _validate_threshold(threshold)
     y_pred = (y_prob >= threshold).astype(np.int64)
 
-    tp = int(((y_pred == 1) & (y_true == 1)).sum())
-    fp = int(((y_pred == 1) & (y_true == 0)).sum())
-    tn = int(((y_pred == 0) & (y_true == 0)).sum())
-    fn = int(((y_pred == 0) & (y_true == 1)).sum())
-
-    precision = _safe_div(tp, tp + fp)
-    recall = _safe_div(tp, tp + fn)
-    f1_attack = _safe_div(2 * tp, 2 * tp + fp + fn)
-    f1_benign = _safe_div(2 * tn, 2 * tn + fn + fp)
     both_classes = 0 < y_true.sum() < len(y_true)
-
-    return BinaryMetrics(
+    return BinaryMetrics.from_counts(
+        tp=int(((y_pred == 1) & (y_true == 1)).sum()),
+        fp=int(((y_pred == 1) & (y_true == 0)).sum()),
+        tn=int(((y_pred == 0) & (y_true == 0)).sum()),
+        fn=int(((y_pred == 0) & (y_true == 1)).sum()),
         threshold=threshold,
-        n_samples=len(y_true),
-        n_attack=tp + fn,
-        n_benign=tn + fp,
-        tp=tp,
-        fp=fp,
-        tn=tn,
-        fn=fn,
-        accuracy=_safe_div(tp + tn, len(y_true)),
-        precision=precision,
-        recall=recall,
-        f1=f1_attack,
-        macro_f1=(f1_attack + f1_benign) / 2,
-        specificity=_safe_div(tn, tn + fp),
-        fpr=_safe_div(fp, fp + tn),
-        fnr=_safe_div(fn, fn + tp),
         roc_auc=float(roc_auc_score(y_true, y_prob)) if both_classes else float("nan"),
         # Average precision (step-wise PR-AUC), not trapezoidal auc(recall, precision),
         # which over-estimates the area under a PR curve.
@@ -247,7 +265,7 @@ def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float) ->
 def make_val_metrics_fn(threshold: float) -> Callable[[nn.Module, DataLoader, torch.device], dict[str, float]]:
     """Per-epoch validation metrics for core.train.fit(extra_val_metrics_fn=...).
 
-    Provides val_pr_auc (Phase 6's objective / early-stopping metric) plus
+    Provides val_pr_auc (the Optuna objective / early-stopping metric) plus
     threshold-dependent metrics at a fixed threshold for monitoring.
     """
     threshold = _validate_threshold(threshold)
@@ -405,7 +423,7 @@ def evaluate_on_test(
     return compute_metrics(test.y, y_prob, threshold)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """Final evaluation of a saved checkpoint: select a threshold on validation, then score the test set once."""
     parser = argparse.ArgumentParser(description="Final held-out test evaluation of a checkpoint")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
@@ -414,16 +432,17 @@ def main() -> None:
     parser.add_argument("--final-test", action="store_true",
                         help="required: confirms tuning is finished and the test set may be used")
     parser.add_argument("--overwrite", action="store_true", help="replace an existing results file")
-    parser.add_argument("--results-dir", type=Path, default=RESULTS_DIR)
-    args = parser.parse_args()
+    parser.add_argument("--results-dir", type=Path, default=None, help="default: paths.results_dir")
+    args = parser.parse_args(argv)
 
     if not args.final_test:
         raise SystemExit("Refusing to touch the test set without --final-test (only run this after all tuning is done).")
-    out_path = args.results_dir / f"{args.name}_test_metrics.json"
+    cfg = load_config(args.config)
+    results_dir = args.results_dir or cfg.paths.results_dir
+    out_path = results_dir / f"{args.name}_test_metrics.json"
     if out_path.exists() and not args.overwrite:
         raise SystemExit(f"{out_path} already exists (test set already evaluated). Pass --overwrite to replace it.")
 
-    cfg = load_config(args.config)
     device = get_device(cfg.device)
     checkpoint = load_checkpoint(args.checkpoint)
     model = checkpoint.build_model(device)
@@ -449,7 +468,7 @@ def main() -> None:
     print()
     print(test_metrics.format_report("HELD-OUT TEST"))
 
-    args.results_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(
             {
