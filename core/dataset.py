@@ -345,12 +345,17 @@ def make_dataloader(
     pin_memory: bool,
     device: torch.device,
     seed: int,
+    drop_last: bool = False,
 ) -> DataLoader:
     """Build a DataLoader for an IntrusionDataset.
 
     pin_memory only helps host->CUDA copies, so it is turned off (with a warning)
     for any other device. Shuffling uses a seeded generator for reproducibility.
+    drop_last is only allowed on a shuffled (training) loader: evaluation loaders
+    must never drop rows.
     """
+    if drop_last and not shuffle:
+        raise ValueError("drop_last=True is only allowed for the shuffled training loader")
     if batch_size < 1:
         raise ValueError(f"batch_size must be >= 1, got {batch_size}")
     if num_workers < 0:
@@ -369,6 +374,7 @@ def make_dataloader(
         persistent_workers=num_workers > 0,
         generator=generator,
         collate_fn=collate_prebatched,
+        drop_last=drop_last,
     )
 
 
@@ -381,10 +387,12 @@ def make_dataloaders(
     pin_memory: bool,
     device: torch.device,
     seed: int,
+    drop_last_train: bool = False,
 ) -> dict[str, DataLoader]:
     """Build one DataLoader per split: shuffle=True only for "train", False for every other split.
 
     "train" uses batch_size; every other split uses eval_batch_size.
+    drop_last_train applies to the "train" loader only; other splits never drop rows.
     """
     return {
         name: make_dataloader(
@@ -395,6 +403,7 @@ def make_dataloaders(
             pin_memory=pin_memory,
             device=device,
             seed=seed,
+            drop_last=drop_last_train and name == "train",
         )
         for name, ds in datasets.items()
     }

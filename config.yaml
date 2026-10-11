@@ -1,10 +1,10 @@
 # Project configuration — single source of truth for configurable values.
 #
-# Phase 3 covers data + model settings only. Training, Optuna and federated
-# sections are added in Phase 8.
+# Sections so far: data, model, training. Optuna and federated sections are
+# added in later phases.
 #
-# NOTE: model values below are untuned starting points, not results of any
-# search. Optuna (Phase 6) will search over them.
+# NOTE: model and training values below are untuned starting points, not
+# results of any search. Optuna (Phase 6) will search over them.
 
 seed: 42          # global seed (data splits, DataLoader shuffling, weight init)
 device: auto      # auto (cuda > mps > cpu) | cuda | mps | cpu
@@ -22,3 +22,18 @@ model:
     hidden_sizes: [128, 64]   # one entry per hidden layer
     batch_norm: false         # BatchNorm1d after each hidden Linear layer
     dropout: 0.2              # dropout after each hidden activation; 0 disables
+
+training:
+  optimizer: adam          # sgd | adam | adamw
+  learning_rate: 0.001
+  weight_decay: 0.0        # L2 penalty (Adam/SGD) or decoupled decay (AdamW)
+  momentum: 0.9            # used only when optimizer is sgd
+  batch_size: 512          # training batch size (val/test use data.eval_batch_size)
+  epochs: 20               # maximum epochs; early stopping may end training sooner
+  grad_clip_norm: null     # max total gradient L2 norm; null disables clipping
+  early_stopping:
+    metric: val_loss       # any per-epoch history key, e.g. val_loss (later: val_pr_auc)
+    mode: min              # min = lower is better (losses); max = higher is better (PR-AUC, F1)
+    patience: 3            # epochs without improvement before stopping
+    min_delta: 0.0         # minimum change that counts as an improvement
+  checkpoint_dir: models/ann_centralized   # best.pt + latest.pt, relative to this file
