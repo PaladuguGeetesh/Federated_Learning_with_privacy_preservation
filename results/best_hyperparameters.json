@@ -1,0 +1,70 @@
+{
+  "study_name": "ann_centralized",
+  "storage": "/Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/optuna/ann_centralized.db",
+  "objective": "val_pr_auc (maximize)",
+  "best_trial": 14,
+  "best_value": 0.9985748726716434,
+  "best_epoch": 17,
+  "val_metrics_at_best_epoch": {
+    "val_loss": 0.013589309264646167,
+    "val_pr_auc": 0.9985748726716434,
+    "val_roc_auc": 0.9997029656330889,
+    "val_f1": 0.9843581244646382,
+    "val_macro_f1": 0.9907946963378209,
+    "val_attack_recall": 0.9818715405475686,
+    "val_fpr": 0.0023215015894371676
+  },
+  "sampled_params": {
+    "n_layers": 3,
+    "layer_0_size": 312,
+    "layer_1_size": 289,
+    "layer_2_size": 201,
+    "dropout": 0.09908404695077791,
+    "batch_norm": false,
+    "optimizer": "adamw",
+    "grad_clip": true,
+    "grad_clip_norm": 4.100852292878112,
+    "class_weighting": "none",
+    "learning_rate": 0.00020290069820594466,
+    "weight_decay": 1.4853130532565991e-06,
+    "batch_size": 2048,
+    "epochs": 25
+  },
+  "hyperparameters": {
+    "ann": {
+      "hidden_sizes": [
+        312,
+        289,
+        201
+      ],
+      "batch_norm": false,
+      "dropout": 0.09908404695077791
+    },
+    "training": {
+      "optimizer": "adamw",
+      "learning_rate": 0.00020290069820594466,
+      "weight_decay": 1.4853130532565991e-06,
+      "momentum": 0.9,
+      "batch_size": 2048,
+      "epochs": 25,
+      "grad_clip_norm": 4.100852292878112,
+      "class_weighting": "none",
+      "pos_weight_scale": 1.0,
+      "early_stopping": {
+        "metric": "val_pr_auc",
+        "mode": "max",
+        "patience": 3,
+        "min_delta": 0.0001
+      }
+    },
+    "pos_weight": null
+  },
+  "trial_counts": {
+    "complete": 18,
+    "pruned": 22,
+    "fail": 0
+  },
+  "validation_data": "load_centralized_data().val (combined client validation rows, pooled-train scaler)",
+  "test_set_used": false,
+  "generated_at": "2026-10-11T10:46:37+00:00"
+}
