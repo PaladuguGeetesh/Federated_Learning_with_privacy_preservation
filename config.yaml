@@ -1,0 +1,24 @@
+# Project configuration — single source of truth for configurable values.
+#
+# Phase 3 covers data + model settings only. Training, Optuna and federated
+# sections are added in Phase 8.
+#
+# NOTE: model values below are untuned starting points, not results of any
+# search. Optuna (Phase 6) will search over them.
+
+seed: 42          # global seed (data splits, DataLoader shuffling, weight init)
+device: auto      # auto (cuda > mps > cpu) | cuda | mps | cpu
+
+data:
+  dataset_dir: dataset     # relative to this file's directory
+  val_fraction: 0.1        # stratified validation slice taken from each client file
+  eval_batch_size: 4096    # batch size for validation/test loaders (no gradients)
+  num_workers: 0           # DataLoader worker processes (0 = load in main process)
+  pin_memory: false        # only takes effect on CUDA
+
+model:
+  # input_dim is not set here: it is inferred from the data (number of feature columns).
+  ann:
+    hidden_sizes: [128, 64]   # one entry per hidden layer
+    batch_norm: false         # BatchNorm1d after each hidden Linear layer
+    dropout: 0.2              # dropout after each hidden activation; 0 disables
