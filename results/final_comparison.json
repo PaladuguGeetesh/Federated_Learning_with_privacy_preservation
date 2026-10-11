@@ -1,26 +1,84 @@
-[
-  {
-    "model":"Centralized RF",
-    "accuracy":0.9988372666,
-    "precision":0.9971857411,
-    "recall":0.9950965096,
-    "f1":0.9961400299,
-    "roc_auc":0.9999011265
+{
+  "table": [
+    {
+      "model": "Centralized RF",
+      "accuracy": 0.9988372666,
+      "precision": 0.9971857411,
+      "recall": 0.9950965096,
+      "f1": 0.9961400299,
+      "roc_auc": 0.9999011265,
+      "macro_f1": 0.9977277872,
+      "pr_auc": null,
+      "fpr": 0.0004985979,
+      "false_negatives": 330,
+      "false_positives": 189,
+      "threshold": 0.5
+    },
+    {
+      "model": "Centralized ANN (tuned)",
+      "accuracy": 0.99597636,
+      "precision": 0.9921411291,
+      "recall": 0.9810844143,
+      "f1": 0.9865817943,
+      "roc_auc": 0.9996720448,
+      "macro_f1": 0.9921075681,
+      "pr_auc": 0.9985306976,
+      "fpr": 0.0013797179,
+      "false_negatives": 1273,
+      "false_positives": 523,
+      "threshold": 0.6452520539
+    },
+    {
+      "model": "Federated LR",
+      "accuracy": 0.9754885048,
+      "precision": 0.9282913336,
+      "recall": 0.9075320584,
+      "f1": 0.9177943243,
+      "roc_auc": 0.9889035179,
+      "macro_f1": 0.9516956393,
+      "pr_auc": 0.9632633602,
+      "fpr": 0.0124464799,
+      "false_negatives": 6223,
+      "false_positives": 4718,
+      "threshold": 0.3014149555
+    },
+    {
+      "model": "Federated ANN",
+      "accuracy": 0.9957366442,
+      "precision": 0.989564306,
+      "recall": 0.9820799715,
+      "f1": 0.9858079335,
+      "roc_auc": 0.999627772,
+      "macro_f1": 0.9916497404,
+      "pr_auc": 0.998294909,
+      "fpr": 0.0018387445,
+      "false_negatives": 1206,
+      "false_positives": 697,
+      "threshold": 0.5505683701
+    }
+  ],
+  "gap_pp_centralized_ann_minus_federated_ann": {
+    "accuracy": 0.024,
+    "precision": 0.2577,
+    "recall": -0.0996,
+    "f1": 0.0774,
+    "roc_auc": 0.0044,
+    "macro_f1": 0.0458,
+    "pr_auc": 0.0236
   },
-  {
-    "model":"Federated LR",
-    "accuracy":0.928855951,
-    "precision":0.6891208803,
-    "recall":0.9622134058,
-    "f1":0.803085547,
-    "roc_auc":0.9895267454
+  "gap_pp_centralized_rf_minus_federated_ann": {
+    "accuracy": 0.3101,
+    "precision": 0.7621,
+    "recall": 1.3017,
+    "f1": 1.0332,
+    "roc_auc": 0.0273,
+    "macro_f1": 0.6078,
+    "pr_auc": NaN
   },
-  {
-    "model":"Federated MLP",
-    "accuracy":0.9915830649,
-    "precision":0.9538325286,
-    "recall":0.9921989926,
-    "f1":0.9726375587,
-    "roc_auc":0.9996837937
-  }
-]
+  "notes": [
+    "All rows: same held-out test set (dataset/test.parquet), each evaluated once.",
+    "ANN/LR thresholds were selected on validation (max attack-F1); RF uses its default 0.5.",
+    "RF was trained on all of train.parquet; the ANN/LR models on the same rows minus the 10% validation slices.",
+    "RF PR-AUC was not recorded by train_rf.py; its FPR/FN/macro-F1 are recovered from its stored metrics."
+  ]
+}

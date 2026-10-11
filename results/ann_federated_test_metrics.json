@@ -1,0 +1,87 @@
+{
+  "checkpoint": "models/federated/ann/best.pt",
+  "checkpoint_epoch": 14,
+  "architecture": {
+    "type": "ann",
+    "input_dim": 77,
+    "ann": {
+      "hidden_sizes": [
+        312,
+        289,
+        201
+      ],
+      "batch_norm": false,
+      "dropout": 0.09908404695077791
+    }
+  },
+  "threshold_selection": {
+    "threshold": 0.550568370139608,
+    "strategy": "max_f1",
+    "target_recall": null,
+    "selected_on": "validation",
+    "validation_metrics": {
+      "threshold": 0.550568370139608,
+      "n_samples": 178545,
+      "n_attack": 26919,
+      "n_benign": 151626,
+      "tp": 26411,
+      "fp": 251,
+      "tn": 151375,
+      "fn": 508,
+      "accuracy": 0.9957489708476854,
+      "precision": 0.9905858525241917,
+      "recall": 0.9811285708978789,
+      "f1": 0.9858345308971463,
+      "macro_f1": 0.9916668906656179,
+      "specificity": 0.998344611082532,
+      "fpr": 0.0016553889174679803,
+      "fnr": 0.018871429102121178,
+      "roc_auc": 0.9996411138483036,
+      "pr_auc": 0.9982939298080773,
+      "attack_recall": 0.9811285708978789,
+      "false_negatives": 508,
+      "confusion_matrix": [
+        [
+          151375,
+          251
+        ],
+        [
+          508,
+          26411
+        ]
+      ]
+    }
+  },
+  "test_metrics": {
+    "threshold": 0.550568370139608,
+    "n_samples": 446362,
+    "n_attack": 67299,
+    "n_benign": 379063,
+    "tp": 66093,
+    "fp": 697,
+    "tn": 378366,
+    "fn": 1206,
+    "accuracy": 0.9957366442483904,
+    "precision": 0.9895643060338374,
+    "recall": 0.9820799714706013,
+    "f1": 0.9858079335366808,
+    "macro_f1": 0.99164974042761,
+    "specificity": 0.9981612555168929,
+    "fpr": 0.0018387444831070297,
+    "fnr": 0.017920028529398654,
+    "roc_auc": 0.9996277720407374,
+    "pr_auc": 0.9982949089979493,
+    "attack_recall": 0.9820799714706013,
+    "false_negatives": 1206,
+    "confusion_matrix": [
+      [
+        378366,
+        697
+      ],
+      [
+        1206,
+        66093
+      ]
+    ]
+  }
+}

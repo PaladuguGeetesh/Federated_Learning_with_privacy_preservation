@@ -1,0 +1,23 @@
+Validation (max_f1) (threshold = 0.301415, n = 178,545)
+  Attack recall (detection rate): 0.9049  (24,358 of 26,919 attacks detected)
+  False negatives (missed attacks): 2,561  (FNR 0.0951)
+  False positives (false alarms):   1,901  (FPR 0.0125)
+  Accuracy 0.9750  Precision 0.9276  F1 0.9161  Macro-F1 0.9507
+  ROC-AUC 0.9892  PR-AUC 0.9626
+  Confusion matrix (rows = actual, cols = predicted):
+                 pred Benign   pred Attack
+    act Benign       149,725         1,901
+    act Attack         2,561        24,358
+
+HELD-OUT TEST (threshold = 0.301415, n = 446,362)
+  Attack recall (detection rate): 0.9075  (61,076 of 67,299 attacks detected)
+  False negatives (missed attacks): 6,223  (FNR 0.0925)
+  False positives (false alarms):   4,718  (FPR 0.0124)
+  Accuracy 0.9755  Precision 0.9283  F1 0.9178  Macro-F1 0.9517
+  ROC-AUC 0.9889  PR-AUC 0.9633
+  Confusion matrix (rows = actual, cols = predicted):
+                 pred Benign   pred Attack
+    act Benign       374,345         4,718
+    act Attack         6,223        61,076
+
+Saved /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/lr_federated_test_metrics.json

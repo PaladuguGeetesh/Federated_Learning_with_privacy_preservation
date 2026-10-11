@@ -1,0 +1,78 @@
+{
+  "checkpoint": "models/federated/logistic_regression/best.pt",
+  "checkpoint_epoch": 15,
+  "architecture": {
+    "type": "logistic_regression",
+    "input_dim": 77
+  },
+  "threshold_selection": {
+    "threshold": 0.30141495548799235,
+    "strategy": "max_f1",
+    "target_recall": null,
+    "selected_on": "validation",
+    "validation_metrics": {
+      "threshold": 0.30141495548799235,
+      "n_samples": 178545,
+      "n_attack": 26919,
+      "n_benign": 151626,
+      "tp": 24358,
+      "fp": 1901,
+      "tn": 149725,
+      "fn": 2561,
+      "accuracy": 0.9750091013469994,
+      "precision": 0.9276057732586923,
+      "recall": 0.9048627363572198,
+      "f1": 0.9160931212155402,
+      "macro_f1": 0.9507056198091179,
+      "specificity": 0.9874625723820453,
+      "fpr": 0.012537427617954705,
+      "fnr": 0.09513726364278019,
+      "roc_auc": 0.9892214060027407,
+      "pr_auc": 0.9626050949346929,
+      "attack_recall": 0.9048627363572198,
+      "false_negatives": 2561,
+      "confusion_matrix": [
+        [
+          149725,
+          1901
+        ],
+        [
+          2561,
+          24358
+        ]
+      ]
+    }
+  },
+  "test_metrics": {
+    "threshold": 0.30141495548799235,
+    "n_samples": 446362,
+    "n_attack": 67299,
+    "n_benign": 379063,
+    "tp": 61076,
+    "fp": 4718,
+    "tn": 374345,
+    "fn": 6223,
+    "accuracy": 0.9754885048458426,
+    "precision": 0.9282913335562514,
+    "recall": 0.907532058425831,
+    "f1": 0.9177943242694958,
+    "macro_f1": 0.9516956392901036,
+    "specificity": 0.9875535201272612,
+    "fpr": 0.012446479872738832,
+    "fnr": 0.092467941574169,
+    "roc_auc": 0.9889035178877983,
+    "pr_auc": 0.9632633602309948,
+    "attack_recall": 0.907532058425831,
+    "false_negatives": 6223,
+    "confusion_matrix": [
+      [
+        374345,
+        4718
+      ],
+      [
+        6223,
+        61076
+      ]
+    ]
+  }
+}
