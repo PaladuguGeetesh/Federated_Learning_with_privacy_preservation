@@ -1,96 +1,129 @@
-"""Flower client implementation: wraps a local model and dataset for one simulated organization, handling fit/evaluate calls from the server."""
+"""
+Flower client for one simulated organization (A, B or C).
 
-from collections import OrderedDict
+Each round the client:
+  1. loads the global arrays from the server into its local model,
+  2. trains for `local_epochs` epochs on ITS OWN training split only
+     (core.dataset.load_client_data — own stratified split, own scaler) using
+     core.train's loop (train_one_epoch, build_optimizer, build_criterion):
+     raw logits + BCEWithLogitsLoss, no sigmoid in the model,
+  3. returns its updated arrays + its local training sample count, which the
+     server uses as the FedAvg weight.
+
+Returned arrays follow federated.common.ParameterLayout: trainable parameters
+first, then BatchNorm buffers (only present if the model has BatchNorm).
+Buffers are running statistics updated during forward passes in train mode —
+they are not gradient-trained — and the server combines them on a separate,
+sample-count-weighted statistics path (federated/aggregation.py) instead of
+FedAvg-ing them like weights.
+
+The optimizer is rebuilt every round (its state is not carried across rounds),
+as in standard FedAvg simulations.
+"""
+
+from collections.abc import Callable
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import flwr as fl
 import numpy as np
 import torch
 
-from models import get_model
-from utils import compute_pos_weight, evaluate, load_and_scale_client_data, train_one_epoch
-
-MODEL_TYPE = "lr"
-BATCH_SIZE = 512
-DEFAULT_LOCAL_EPOCHS = 3
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-CLIENT_PATHS = {
-    "A": BASE_DIR / "dataset" / "client_A.parquet",
-    "B": BASE_DIR / "dataset" / "client_B.parquet",
-    "C": BASE_DIR / "dataset" / "client_C.parquet",
-}
+from core.config import Config
+from core.dataset import CLIENT_IDS, ClientData, IntrusionDataset, get_device, load_client_data, make_dataloader
+from core.train import (
+    build_criterion,
+    build_optimizer,
+    compute_pos_weight,
+    set_seed,
+    train_drop_last,
+    train_one_epoch,
+)
+from federated.common import FederatedSettings, ParameterLayout, build_model, get_arrays, set_arrays
 
 
-def get_parameters(model) -> list[np.ndarray]:
-    return [val.cpu().numpy() for val in model.state_dict().values()]
+@lru_cache(maxsize=None)
+def _client_data(client_id: str, dataset_dir: Path, val_fraction: float, seed: int) -> tuple[ClientData, IntrusionDataset]:
+    """Load a client's data once per process (Flower re-creates client objects every round)."""
+    data = load_client_data(client_id, dataset_dir, val_fraction, seed)
+    return data, data.train.to_dataset()
 
 
-def set_parameters(model, parameters: list[np.ndarray]) -> None:
-    params_dict = zip(model.state_dict().keys(), parameters)
-    state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-    model.load_state_dict(state_dict, strict=True)
+class IntrusionClient(fl.client.NumPyClient):
+    """NumPyClient training the shared model on one organization's local data."""
 
-
-class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, client_id: str, model_type: str):
+    def __init__(self, client_id: str, cfg: Config, settings: FederatedSettings, device: torch.device) -> None:
+        if client_id not in CLIENT_IDS:
+            raise ValueError(f"Unknown client id {client_id!r}")
         self.client_id = client_id
-        self.model_type = model_type
+        self.cfg = cfg
+        self.settings = settings
+        self.device = device
+        self.data, self.train_ds = _client_data(client_id, cfg.data.dataset_dir, cfg.data.val_fraction, cfg.seed)
+        self.model = build_model(settings, len(self.data.feature_names)).to(device)
+        self.layout = ParameterLayout.from_model(self.model)
+        # Class weighting uses this client's own training labels only.
+        self.pos_weight = compute_pos_weight(
+            self.data.train.y, settings.training.class_weighting, settings.training.pos_weight_scale
+        )
 
-        data_path = CLIENT_PATHS[client_id]
-        self.features, self.labels, self.scaler = load_and_scale_client_data(data_path)
+    def get_parameters(self, config: dict[str, Any]) -> list[np.ndarray]:
+        return get_arrays(self.model)
 
-        self.model = get_model(model_type)
+    def fit(self, parameters: list[np.ndarray], config: dict[str, Any]) -> tuple[list[np.ndarray], int, dict[str, Any]]:
+        set_arrays(self.model, self.layout, parameters)
+        server_round = int(config["server_round"])
+        local_epochs = int(config["local_epochs"])
+        if local_epochs < 1:
+            raise ValueError(f"local_epochs must be >= 1, got {local_epochs}")
 
-    def get_parameters(self, config):
-        return get_parameters(self.model)
+        # Different, reproducible shuffling per (round, client).
+        seed = self.cfg.seed + 1000 * server_round + CLIENT_IDS.index(self.client_id)
+        set_seed(seed)
+        training = self.settings.training
+        batch_norm = self.settings.ann.batch_norm if self.settings.ann else False
+        loader = make_dataloader(
+            self.train_ds,
+            batch_size=training.batch_size,
+            shuffle=True,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=self.cfg.data.pin_memory,
+            device=self.device,
+            seed=seed,
+            drop_last=train_drop_last(len(self.train_ds), training.batch_size, batch_norm),
+        )
+        optimizer = build_optimizer(self.model, training)
+        criterion = build_criterion(self.pos_weight, self.device)
 
-    def fit(self, parameters, config):
-        set_parameters(self.model, parameters)
-
-        pos_weight = compute_pos_weight(self.labels)
-        local_epochs = config.get("LOCAL_EPOCHS", DEFAULT_LOCAL_EPOCHS)
-
-        final_loss = None
-        for _ in range(local_epochs):
-            final_loss = train_one_epoch(
-                self.model, self.features, self.labels, pos_weight, batch_size=BATCH_SIZE
-            )
-
-        return get_parameters(self.model), len(self.features), {"loss": final_loss}
-
-    def evaluate(self, parameters, config):
-        set_parameters(self.model, parameters)
-
-        metrics = evaluate(self.model, self.features, self.labels)
-        loss = 1 - metrics["accuracy"]
-
-        return float(loss), len(self.features), metrics
-
-
-def client_fn(cid: str) -> fl.client.Client:
-    cid_to_client = {
-        "0": "A",
-        "1": "B",
-        "2": "C",
-    }
-    client_id = cid_to_client[cid]
-    return FlowerClient(client_id=client_id, model_type=MODEL_TYPE).to_client()
+        losses = [
+            train_one_epoch(self.model, loader, criterion, optimizer, self.device, training.grad_clip_norm).loss
+            for _ in range(local_epochs)
+        ]
+        metrics = {
+            "client_id": self.client_id,
+            "train_loss_first_epoch": losses[0],
+            "train_loss": losses[-1],
+            "num_trainable_arrays": self.layout.num_trainable,
+            "num_buffer_arrays": len(self.layout.buffers),
+        }
+        return get_arrays(self.model), len(self.train_ds), metrics
 
 
-if __name__ == "__main__":
-    client = FlowerClient(client_id="A", model_type="mlp")
+def make_client_fn(cfg: Config, settings: FederatedSettings) -> Callable[[str], fl.client.Client]:
+    """client_fn for flwr.simulation.start_simulation.
 
-    initial_parameters = client.get_parameters(config={})
-    print(f"Retrieved {len(initial_parameters)} parameter arrays from initial model.")
+    Flower 1.9's simulation engine requires integer-like client ids, so the
+    simulation uses "0", "1", "2", mapped here to organizations A, B, C.
+    """
 
-    updated_parameters, num_examples, fit_metrics = client.fit(
-        initial_parameters, config={"LOCAL_EPOCHS": 2}
-    )
-    print(f"fit() — num_examples: {num_examples}, metrics: {fit_metrics}")
+    def client_fn(cid: str) -> fl.client.Client:
+        try:
+            client_id = CLIENT_IDS[int(cid)]
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Unexpected simulation client id {cid!r}; expected 0..{len(CLIENT_IDS) - 1}") from e
+        torch.set_num_threads(cfg.federated.client_num_cpus)
+        device = get_device(cfg.federated.client_device)
+        return IntrusionClient(client_id, cfg, settings, device).to_client()
 
-    loss, num_examples, eval_metrics = client.evaluate(updated_parameters, config={})
-    print(f"evaluate() — loss: {loss:.4f}, num_examples: {num_examples}")
-    print("evaluate() metrics:")
-    for name, value in eval_metrics.items():
-        print(f"  {name}: {value:.4f}")
+    return client_fn

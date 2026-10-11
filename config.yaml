@@ -1,7 +1,6 @@
 # Project configuration — single source of truth for configurable values.
 #
-# Sections so far: data, model, training, evaluation, optuna. The federated
-# section is added in a later phase.
+# Sections: data, model, training, evaluation, optuna, federated.
 #
 # NOTE: model and training values below are untuned starting points, not
 # results of any search. Optuna (Phase 6) will search over them.
@@ -80,3 +79,19 @@ optuna:
     pos_weight_scale: [0.25, 4.0]          # sampled only for balanced_scaled (log scale)
     # Not searched: activation function (ann.py implements ReLU only) and LR
     # scheduler (none implemented). Add them here once they exist.
+
+federated:
+  # Federated simulation (Flower, FedAvg) across clients A, B, C — federated/server.py.
+  model: ann                   # ann | logistic_regression
+  # For model: ann, the architecture AND local-training settings (optimizer, lr,
+  # weight decay, batch size, clipping, class weighting) come from this Optuna
+  # result for the CENTRALIZED ANN — not from model.ann / training above.
+  # Centralized-tuned values must be re-validated under federated training.
+  # For model: logistic_regression, local training uses the training section above.
+  ann_hyperparameters: results/best_hyperparameters.json
+  rounds: 15                   # communication rounds
+  local_epochs: 3              # epochs each client trains per round
+  client_device: cpu           # device inside each simulated client process (cpu | mps | cuda | auto)
+  client_num_cpus: 2           # CPU cores reserved per simulated client (also torch threads)
+  checkpoint_dir: models/federated   # <dir>/<model>/best.pt (best round by val PR-AUC) and latest.pt
+  results_dir: results               # writes federated_<model>_validation_rounds.json

@@ -363,6 +363,54 @@ class OptunaConfig:
         )
 
 
+VALID_FEDERATED_MODELS = ("ann", "logistic_regression")
+
+
+@dataclass(frozen=True)
+class FederatedConfig:
+    """Federated simulation settings for federated/server.py."""
+
+    model: str
+    ann_hyperparameters: Path
+    rounds: int
+    local_epochs: int
+    client_device: str
+    client_num_cpus: int
+    checkpoint_dir: Path
+    results_dir: Path
+
+    def __post_init__(self) -> None:
+        if self.model not in VALID_FEDERATED_MODELS:
+            raise ValueError(f"federated.model must be one of {VALID_FEDERATED_MODELS}, got {self.model!r}")
+        if self.rounds < 1:
+            raise ValueError(f"federated.rounds must be >= 1, got {self.rounds}")
+        if self.local_epochs < 1:
+            raise ValueError(f"federated.local_epochs must be >= 1, got {self.local_epochs}")
+        if self.client_device not in VALID_DEVICES:
+            raise ValueError(f"federated.client_device must be one of {VALID_DEVICES}, got {self.client_device!r}")
+        if self.client_num_cpus < 1:
+            raise ValueError(f"federated.client_num_cpus must be >= 1, got {self.client_num_cpus}")
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], base_dir: Path) -> "FederatedConfig":
+        _check_keys("federated", d, {f for f in cls.__dataclass_fields__})
+
+        def resolve(p: str) -> Path:
+            path = Path(p)
+            return path if path.is_absolute() else (base_dir / path).resolve()
+
+        return cls(
+            model=str(d["model"]).lower(),
+            ann_hyperparameters=resolve(d["ann_hyperparameters"]),
+            rounds=int(d["rounds"]),
+            local_epochs=int(d["local_epochs"]),
+            client_device=str(d["client_device"]).lower(),
+            client_num_cpus=int(d["client_num_cpus"]),
+            checkpoint_dir=resolve(d["checkpoint_dir"]),
+            results_dir=resolve(d["results_dir"]),
+        )
+
+
 @dataclass(frozen=True)
 class Config:
     """Top-level project configuration."""
@@ -374,6 +422,7 @@ class Config:
     training: TrainingConfig
     evaluation: EvaluationConfig
     optuna: OptunaConfig
+    federated: FederatedConfig
     source_path: Path
 
 
@@ -388,7 +437,7 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
-    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation", "optuna"})
+    _check_keys("<root>", raw, {"seed", "device", "data", "model", "training", "evaluation", "optuna", "federated"})
     _check_keys("model", raw["model"], {"ann"})
 
     device = str(raw["device"]).lower()
@@ -403,5 +452,6 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         training=TrainingConfig.from_dict(raw["training"], base_dir=path.parent),
         evaluation=EvaluationConfig.from_dict(raw["evaluation"]),
         optuna=OptunaConfig.from_dict(raw["optuna"], base_dir=path.parent),
+        federated=FederatedConfig.from_dict(raw["federated"], base_dir=path.parent),
         source_path=path,
     )

@@ -295,6 +295,47 @@ def load_centralized_data(
     )
 
 
+def combine_scalers(scalers: list[StandardScaler]) -> StandardScaler:
+    """Sample-count-weighted combination of per-client StandardScalers.
+
+    Produces exactly the scaler that would be fit on all clients' training rows
+    pooled, using only each client's (n_i, mean_i, var_i) — the statistics a
+    client would share, never its rows:
+
+        mean = sum(n_i * mean_i) / N
+        var  = sum(n_i * (var_i + (mean_i - mean)^2)) / N     (law of total variance)
+
+    Replaces the old equal-weight average of variances, which ignored both the
+    client sizes and the spread of client means. Used only for the one-time
+    federated test evaluation (a single model needs a single input scaling);
+    per-round federated validation uses each client's own scaler instead.
+    """
+    if not scalers:
+        raise ValueError("Need at least one scaler to combine")
+    for s in scalers:
+        if not hasattr(s, "mean_") or not hasattr(s, "var_"):
+            raise ValueError("All scalers must be fitted (with_mean and with_std enabled)")
+    if len({s.mean_.shape for s in scalers}) != 1:
+        raise ValueError("Scalers have different numbers of features")
+    n = np.array([float(np.asarray(s.n_samples_seen_).max()) for s in scalers])
+    means = np.stack([s.mean_ for s in scalers])
+    variances = np.stack([s.var_ for s in scalers])
+    total = n.sum()
+    mean = (n[:, None] * means).sum(axis=0) / total
+    var = (n[:, None] * (variances + (means - mean) ** 2)).sum(axis=0) / total
+
+    combined = StandardScaler()
+    combined.mean_ = mean
+    combined.var_ = var
+    scale = np.sqrt(var)
+    # Same convention as sklearn: (near-)constant features get scale 1, not ~0.
+    scale[scale < 10 * np.finfo(scale.dtype).eps] = 1.0
+    combined.scale_ = scale
+    combined.n_features_in_ = mean.shape[0]
+    combined.n_samples_seen_ = int(total)
+    return combined
+
+
 def load_raw_validation(
     dataset_dir: Path, val_fraction: float, seed: int
 ) -> tuple[np.ndarray, np.ndarray, list[str]]:
