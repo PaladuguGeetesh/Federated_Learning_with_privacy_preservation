@@ -1,0 +1,320 @@
+Model: logistic_regression — config.yaml training section
+Rounds: 15, local epochs: 3, server device: mps, client device: cpu
+Identical parameter shapes on server and clients A, B, C: 2 trainable arrays, 0 BatchNorm buffer arrays
+[92mINFO [0m:      Starting Flower simulation, config: num_rounds=15, no round_timeout
+2026-10-11 18:54:48,517	INFO worker.py:1752 -- Started a local Ray instance.
+[92mINFO [0m:      Flower VCE: Ray initialized with resources: {'node:__internal_head__': 1.0, 'CPU': 10.0, 'node:127.0.0.1': 1.0, 'object_store_memory': 2147483648.0, 'memory': 8026316800.0}
+[92mINFO [0m:      Optimize your simulation with Flower VCE: https://flower.ai/docs/framework/how-to-run-simulations.html
+[92mINFO [0m:      Flower VCE: Resources for each Virtual Client: {'num_cpus': 2, 'num_gpus': 0.0}
+[92mINFO [0m:      Flower VCE: Creating VirtualClientEngineActorPool with 5 actors
+[92mINFO [0m:      [INIT]
+[92mINFO [0m:      Using initial global parameters provided by strategy
+[92mINFO [0m:      Evaluating initial global parameters
+[round   0] val_loss 0.75965  val_pr_auc 0.13654  macro_f1 0.24596  attack_recall 0.33226  FN 17,975  FPR 0.74468
+[92mINFO [0m:      initial parameters (loss, other metrics): 0.7596462901509423, {'val_loss': 0.7596462901509423, 'val_pr_auc': 0.13654007461917222, 'val_roc_auc': 0.33592094762355174, 'val_macro_f1': 0.2459568691271856, 'val_f1': 0.12023444641608862, 'val_attack_recall': 0.3322560273412831, 'val_false_negatives': 17975, 'val_fpr': 0.7446809913867015, 'elapsed_seconds': 2.341916084289551}
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 1]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   1] val_loss 0.13479  val_pr_auc 0.92723  macro_f1 0.92024  attack_recall 0.80133  FN 5,348  FPR 0.00997
+[92mINFO [0m:      fit progress: (1, 0.13478766732476408, {'val_loss': 0.13478766732476408, 'val_pr_auc': 0.9272276977729621, 'val_roc_auc': 0.955597510560594, 'val_macro_f1': 0.920243599563205, 'val_f1': 0.8628227435451291, 'val_attack_recall': 0.8013299156729448, 'val_false_negatives': 5348, 'val_fpr': 0.009965309379657842, 'elapsed_seconds': 6.092221021652222}, 3.752014292011154)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 2]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   2] val_loss 0.10179  val_pr_auc 0.95196  macro_f1 0.91431  attack_recall 0.76106  FN 6,432  FPR 0.00463
+[92mINFO [0m:      fit progress: (2, 0.1017887647371811, {'val_loss': 0.1017887647371811, 'val_pr_auc': 0.9519634012234212, 'val_roc_auc': 0.9847071208236207, 'val_macro_f1': 0.9143099659550504, 'val_f1': 0.8517086555250686, 'val_attack_recall': 0.761060960659757, 'val_false_negatives': 6432, 'val_fpr': 0.004629812828934351, 'elapsed_seconds': 8.058272123336792}, 5.717934625005)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 3]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   3] val_loss 0.09614  val_pr_auc 0.95637  macro_f1 0.91976  attack_recall 0.77391  FN 6,086  FPR 0.00413
+[92mINFO [0m:      fit progress: (3, 0.09614399337351928, {'val_loss': 0.09614399337351928, 'val_pr_auc': 0.9563650743661561, 'val_roc_auc': 0.9866860397132277, 'val_macro_f1': 0.9197586514426623, 'val_f1': 0.8612592500723469, 'val_attack_recall': 0.7739143355993907, 'val_false_negatives': 6086, 'val_fpr': 0.004128579531214963, 'elapsed_seconds': 9.236666917800903}, 6.896635083001456)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 4]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   4] val_loss 0.09385  val_pr_auc 0.95819  macro_f1 0.92515  attack_recall 0.78220  FN 5,863  FPR 0.00262
+[92mINFO [0m:      fit progress: (4, 0.09385340749180879, {'val_loss': 0.09385340749180879, 'val_pr_auc': 0.9581911590336241, 'val_roc_auc': 0.9875015613101027, 'val_macro_f1': 0.9251544421597422, 'val_f1': 0.8705862895890184, 'val_attack_recall': 0.7821984471934321, 'val_false_negatives': 5863, 'val_fpr': 0.0026182844630868057, 'elapsed_seconds': 10.395179986953735}, 8.054563708006754)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 5]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   5] val_loss 0.09252  val_pr_auc 0.95945  macro_f1 0.92928  attack_recall 0.79323  FN 5,566  FPR 0.00249
+[92mINFO [0m:      fit progress: (5, 0.09251885685331429, {'val_loss': 0.09251885685331429, 'val_pr_auc': 0.9594454229930418, 'val_roc_auc': 0.987931162148421, 'val_macro_f1': 0.9292750002898917, 'val_f1': 0.8778211716341213, 'val_attack_recall': 0.7932315464913259, 'val_false_negatives': 5566, 'val_fpr': 0.0024929761386569584, 'elapsed_seconds': 12.081305980682373}, 9.740626291997614)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 6]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   6] val_loss 0.09155  val_pr_auc 0.96000  macro_f1 0.92943  attack_recall 0.79364  FN 5,555  FPR 0.00249
+[92mINFO [0m:      fit progress: (6, 0.0915540757844661, {'val_loss': 0.0915540757844661, 'val_pr_auc': 0.9599995258818785, 'val_roc_auc': 0.9881323389950785, 'val_macro_f1': 0.9294300001443211, 'val_f1': 0.8780928894369092, 'val_attack_recall': 0.7936401797986552, 'val_false_negatives': 5555, 'val_fpr': 0.0024863809636869664, 'elapsed_seconds': 13.784094095230103}, 11.445575667006779)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 7]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   7] val_loss 0.09091  val_pr_auc 0.96045  macro_f1 0.92965  attack_recall 0.79475  FN 5,525  FPR 0.00259
+[92mINFO [0m:      fit progress: (7, 0.09090727302640791, {'val_loss': 0.09090727302640791, 'val_pr_auc': 0.9604510805960998, 'val_roc_auc': 0.98832411479577, 'val_macro_f1': 0.9296525512503926, 'val_f1': 0.8784954625713465, 'val_attack_recall': 0.7947546342731899, 'val_false_negatives': 5525, 'val_fpr': 0.002591903763206838, 'elapsed_seconds': 15.010427951812744}, 12.671376833008253)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 8]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   8] val_loss 0.09037  val_pr_auc 0.96106  macro_f1 0.93139  attack_recall 0.79932  FN 5,402  FPR 0.00251
+[92mINFO [0m:      fit progress: (8, 0.09036933638053432, {'val_loss': 0.09036933638053432, 'val_pr_auc': 0.961061841699428, 'val_roc_auc': 0.988465170052881, 'val_macro_f1': 0.9313889115026102, 'val_f1': 0.8815371694286827, 'val_attack_recall': 0.7993238976187823, 'val_false_negatives': 5402, 'val_fpr': 0.0025127616635669345, 'elapsed_seconds': 16.156373023986816}, 13.815740792008)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 9]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round   9] val_loss 0.08995  val_pr_auc 0.96134  macro_f1 0.93176  attack_recall 0.80103  FN 5,356  FPR 0.00265
+[92mINFO [0m:      fit progress: (9, 0.08994558772823377, {'val_loss': 0.08994558772823377, 'val_pr_auc': 0.961344433567539, 'val_roc_auc': 0.9886357007367428, 'val_macro_f1': 0.9317643192419574, 'val_f1': 0.882210948367564, 'val_attack_recall': 0.8010327278130689, 'val_false_negatives': 5356, 'val_fpr': 0.0026512603379367653, 'elapsed_seconds': 17.35989999771118}, 15.019214833009755)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 10]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  10] val_loss 0.08959  val_pr_auc 0.96173  macro_f1 0.93105  attack_recall 0.79866  FN 5,420  FPR 0.00258
+[92mINFO [0m:      fit progress: (10, 0.089586314243258, {'val_loss': 0.089586314243258, 'val_pr_auc': 0.9617276872447101, 'val_roc_auc': 0.9887990604938912, 'val_macro_f1': 0.9310472011709445, 'val_f1': 0.8809440881804586, 'val_attack_recall': 0.7986552249340615, 'val_false_negatives': 5420, 'val_fpr': 0.002578713413266854, 'elapsed_seconds': 18.53778910636902}, 16.19729433300381)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 11]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  11] val_loss 0.08927  val_pr_auc 0.96177  macro_f1 0.93234  attack_recall 0.80278  FN 5,309  FPR 0.00267
+[92mINFO [0m:      fit progress: (11, 0.08927431416099582, {'val_loss': 0.08927431416099582, 'val_pr_auc': 0.9617682032925234, 'val_roc_auc': 0.9888264106617067, 'val_macro_f1': 0.9323439586658572, 'val_f1': 0.8832304736992684, 'val_attack_recall': 0.8027787064898398, 'val_false_negatives': 5309, 'val_fpr': 0.0026710458628467415, 'elapsed_seconds': 19.71639895439148}, 17.375798749999376)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 12]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  12] val_loss 0.08899  val_pr_auc 0.96212  macro_f1 0.93218  attack_recall 0.80237  FN 5,320  FPR 0.00268
+[92mINFO [0m:      fit progress: (12, 0.08898867188593912, {'val_loss': 0.08898867188593912, 'val_pr_auc': 0.9621166721884447, 'val_roc_auc': 0.9889318848285793, 'val_macro_f1': 0.9321795402543553, 'val_f1': 0.8829432805314257, 'val_attack_recall': 0.8023700731825105, 'val_false_negatives': 5320, 'val_fpr': 0.0026842362127867253, 'elapsed_seconds': 20.943145990371704}, 18.60244479200628)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 13]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  13] val_loss 0.08873  val_pr_auc 0.96236  macro_f1 0.93261  attack_recall 0.80315  FN 5,299  FPR 0.00259
+[92mINFO [0m:      fit progress: (13, 0.08873036646923745, {'val_loss': 0.08873036646923745, 'val_pr_auc': 0.9623619757784913, 'val_roc_auc': 0.9890663108556172, 'val_macro_f1': 0.9326128125341033, 'val_f1': 0.8836933641249923, 'val_attack_recall': 0.8031501913146848, 'val_false_negatives': 5299, 'val_fpr': 0.002585308588236846, 'elapsed_seconds': 22.09835410118103}, 19.757660458009923)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 14]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  14] val_loss 0.08853  val_pr_auc 0.96253  macro_f1 0.93275  attack_recall 0.80367  FN 5,285  FPR 0.00261
+[92mINFO [0m:      fit progress: (14, 0.08853070566943907, {'val_loss': 0.08853070566943907, 'val_pr_auc': 0.9625317755750713, 'val_roc_auc': 0.9891201393561084, 'val_macro_f1': 0.9327520313108508, 'val_f1': 0.8839404277921918, 'val_attack_recall': 0.8036702700694677, 'val_false_negatives': 5285, 'val_fpr': 0.0026116892881168138, 'elapsed_seconds': 23.332711935043335}, 20.992210625001462)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 15]
+[92mINFO [0m:      configure_fit: strategy sampled 3 clients (out of 3)
+[92mINFO [0m:      aggregate_fit: received 3 results and 0 failures
+[round  15] val_loss 0.08830  val_pr_auc 0.96261  macro_f1 0.93244  attack_recall 0.80278  FN 5,309  FPR 0.00261
+[92mINFO [0m:      fit progress: (15, 0.08829611079314739, {'val_loss': 0.08829611079314739, 'val_pr_auc': 0.9626050949346929, 'val_roc_auc': 0.9892214060027407, 'val_macro_f1': 0.9324400693471446, 'val_f1': 0.8833929483903935, 'val_attack_recall': 0.8027787064898398, 'val_false_negatives': 5309, 'val_fpr': 0.0026116892881168138, 'elapsed_seconds': 24.54487705230713}, 22.20613545800734)
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [SUMMARY]
+[92mINFO [0m:      Run finished 15 round(s) in 22.21s
+[92mINFO [0m:      	History (loss, centralized):
+[92mINFO [0m:      		round 0: 0.7596462901509423
+[92mINFO [0m:      		round 1: 0.13478766732476408
+[92mINFO [0m:      		round 2: 0.1017887647371811
+[92mINFO [0m:      		round 3: 0.09614399337351928
+[92mINFO [0m:      		round 4: 0.09385340749180879
+[92mINFO [0m:      		round 5: 0.09251885685331429
+[92mINFO [0m:      		round 6: 0.0915540757844661
+[92mINFO [0m:      		round 7: 0.09090727302640791
+[92mINFO [0m:      		round 8: 0.09036933638053432
+[92mINFO [0m:      		round 9: 0.08994558772823377
+[92mINFO [0m:      		round 10: 0.089586314243258
+[92mINFO [0m:      		round 11: 0.08927431416099582
+[92mINFO [0m:      		round 12: 0.08898867188593912
+[92mINFO [0m:      		round 13: 0.08873036646923745
+[92mINFO [0m:      		round 14: 0.08853070566943907
+[92mINFO [0m:      		round 15: 0.08829611079314739
+[92mINFO [0m:      	History (metrics, distributed, fit):
+[92mINFO [0m:      	{'bn_buffer_arrays_aggregated': [(1, 0),
+[92mINFO [0m:      	                                 (2, 0),
+[92mINFO [0m:      	                                 (3, 0),
+[92mINFO [0m:      	                                 (4, 0),
+[92mINFO [0m:      	                                 (5, 0),
+[92mINFO [0m:      	                                 (6, 0),
+[92mINFO [0m:      	                                 (7, 0),
+[92mINFO [0m:      	                                 (8, 0),
+[92mINFO [0m:      	                                 (9, 0),
+[92mINFO [0m:      	                                 (10, 0),
+[92mINFO [0m:      	                                 (11, 0),
+[92mINFO [0m:      	                                 (12, 0),
+[92mINFO [0m:      	                                 (13, 0),
+[92mINFO [0m:      	                                 (14, 0),
+[92mINFO [0m:      	                                 (15, 0)],
+[92mINFO [0m:      	 'client_train_loss': [(1, 0.14370097992313144),
+[92mINFO [0m:      	                       (2, 0.10481401940554447),
+[92mINFO [0m:      	                       (3, 0.09761164010619211),
+[92mINFO [0m:      	                       (4, 0.09513238162837241),
+[92mINFO [0m:      	                       (5, 0.09381786168576868),
+[92mINFO [0m:      	                       (6, 0.09293876406124467),
+[92mINFO [0m:      	                       (7, 0.09228674637842826),
+[92mINFO [0m:      	                       (8, 0.09175731535164935),
+[92mINFO [0m:      	                       (9, 0.09135781723446838),
+[92mINFO [0m:      	                       (10, 0.09103877785333739),
+[92mINFO [0m:      	                       (11, 0.09073959912461829),
+[92mINFO [0m:      	                       (12, 0.09049459111540302),
+[92mINFO [0m:      	                       (13, 0.09027585167533865),
+[92mINFO [0m:      	                       (14, 0.09005648019492825),
+[92mINFO [0m:      	                       (15, 0.0898528902757734)]}
+[92mINFO [0m:      	History (metrics, centralized):
+[92mINFO [0m:      	{'elapsed_seconds': [(0, 2.341916084289551),
+[92mINFO [0m:      	                     (1, 6.092221021652222),
+[92mINFO [0m:      	                     (2, 8.058272123336792),
+[92mINFO [0m:      	                     (3, 9.236666917800903),
+[92mINFO [0m:      	                     (4, 10.395179986953735),
+[92mINFO [0m:      	                     (5, 12.081305980682373),
+[92mINFO [0m:      	                     (6, 13.784094095230103),
+[92mINFO [0m:      	                     (7, 15.010427951812744),
+[92mINFO [0m:      	                     (8, 16.156373023986816),
+[92mINFO [0m:      	                     (9, 17.35989999771118),
+[92mINFO [0m:      	                     (10, 18.53778910636902),
+[92mINFO [0m:      	                     (11, 19.71639895439148),
+[92mINFO [0m:      	                     (12, 20.943145990371704),
+[92mINFO [0m:      	                     (13, 22.09835410118103),
+[92mINFO [0m:      	                     (14, 23.332711935043335),
+[92mINFO [0m:      	                     (15, 24.54487705230713)],
+[92mINFO [0m:      	 'val_attack_recall': [(0, 0.3322560273412831),
+[92mINFO [0m:      	                       (1, 0.8013299156729448),
+[92mINFO [0m:      	                       (2, 0.761060960659757),
+[92mINFO [0m:      	                       (3, 0.7739143355993907),
+[92mINFO [0m:      	                       (4, 0.7821984471934321),
+[92mINFO [0m:      	                       (5, 0.7932315464913259),
+[92mINFO [0m:      	                       (6, 0.7936401797986552),
+[92mINFO [0m:      	                       (7, 0.7947546342731899),
+[92mINFO [0m:      	                       (8, 0.7993238976187823),
+[92mINFO [0m:      	                       (9, 0.8010327278130689),
+[92mINFO [0m:      	                       (10, 0.7986552249340615),
+[92mINFO [0m:      	                       (11, 0.8027787064898398),
+[92mINFO [0m:      	                       (12, 0.8023700731825105),
+[92mINFO [0m:      	                       (13, 0.8031501913146848),
+[92mINFO [0m:      	                       (14, 0.8036702700694677),
+[92mINFO [0m:      	                       (15, 0.8027787064898398)],
+[92mINFO [0m:      	 'val_f1': [(0, 0.12023444641608862),
+[92mINFO [0m:      	            (1, 0.8628227435451291),
+[92mINFO [0m:      	            (2, 0.8517086555250686),
+[92mINFO [0m:      	            (3, 0.8612592500723469),
+[92mINFO [0m:      	            (4, 0.8705862895890184),
+[92mINFO [0m:      	            (5, 0.8778211716341213),
+[92mINFO [0m:      	            (6, 0.8780928894369092),
+[92mINFO [0m:      	            (7, 0.8784954625713465),
+[92mINFO [0m:      	            (8, 0.8815371694286827),
+[92mINFO [0m:      	            (9, 0.882210948367564),
+[92mINFO [0m:      	            (10, 0.8809440881804586),
+[92mINFO [0m:      	            (11, 0.8832304736992684),
+[92mINFO [0m:      	            (12, 0.8829432805314257),
+[92mINFO [0m:      	            (13, 0.8836933641249923),
+[92mINFO [0m:      	            (14, 0.8839404277921918),
+[92mINFO [0m:      	            (15, 0.8833929483903935)],
+[92mINFO [0m:      	 'val_false_negatives': [(0, 17975),
+[92mINFO [0m:      	                         (1, 5348),
+[92mINFO [0m:      	                         (2, 6432),
+[92mINFO [0m:      	                         (3, 6086),
+[92mINFO [0m:      	                         (4, 5863),
+[92mINFO [0m:      	                         (5, 5566),
+[92mINFO [0m:      	                         (6, 5555),
+[92mINFO [0m:      	                         (7, 5525),
+[92mINFO [0m:      	                         (8, 5402),
+[92mINFO [0m:      	                         (9, 5356),
+[92mINFO [0m:      	                         (10, 5420),
+[92mINFO [0m:      	                         (11, 5309),
+[92mINFO [0m:      	                         (12, 5320),
+[92mINFO [0m:      	                         (13, 5299),
+[92mINFO [0m:      	                         (14, 5285),
+[92mINFO [0m:      	                         (15, 5309)],
+[92mINFO [0m:      	 'val_fpr': [(0, 0.7446809913867015),
+[92mINFO [0m:      	             (1, 0.009965309379657842),
+[92mINFO [0m:      	             (2, 0.004629812828934351),
+[92mINFO [0m:      	             (3, 0.004128579531214963),
+[92mINFO [0m:      	             (4, 0.0026182844630868057),
+[92mINFO [0m:      	             (5, 0.0024929761386569584),
+[92mINFO [0m:      	             (6, 0.0024863809636869664),
+[92mINFO [0m:      	             (7, 0.002591903763206838),
+[92mINFO [0m:      	             (8, 0.0025127616635669345),
+[92mINFO [0m:      	             (9, 0.0026512603379367653),
+[92mINFO [0m:      	             (10, 0.002578713413266854),
+[92mINFO [0m:      	             (11, 0.0026710458628467415),
+[92mINFO [0m:      	             (12, 0.0026842362127867253),
+[92mINFO [0m:      	             (13, 0.002585308588236846),
+[92mINFO [0m:      	             (14, 0.0026116892881168138),
+[92mINFO [0m:      	             (15, 0.0026116892881168138)],
+[92mINFO [0m:      	 'val_loss': [(0, 0.7596462901509423),
+[92mINFO [0m:      	              (1, 0.13478766732476408),
+[92mINFO [0m:      	              (2, 0.1017887647371811),
+[92mINFO [0m:      	              (3, 0.09614399337351928),
+[92mINFO [0m:      	              (4, 0.09385340749180879),
+[92mINFO [0m:      	              (5, 0.09251885685331429),
+[92mINFO [0m:      	              (6, 0.0915540757844661),
+[92mINFO [0m:      	              (7, 0.09090727302640791),
+[92mINFO [0m:      	              (8, 0.09036933638053432),
+[92mINFO [0m:      	              (9, 0.08994558772823377),
+[92mINFO [0m:      	              (10, 0.089586314243258),
+[92mINFO [0m:      	              (11, 0.08927431416099582),
+[92mINFO [0m:      	              (12, 0.08898867188593912),
+[92mINFO [0m:      	              (13, 0.08873036646923745),
+[92mINFO [0m:      	              (14, 0.08853070566943907),
+[92mINFO [0m:      	              (15, 0.08829611079314739)],
+[92mINFO [0m:      	 'val_macro_f1': [(0, 0.2459568691271856),
+[92mINFO [0m:      	                  (1, 0.920243599563205),
+[92mINFO [0m:      	                  (2, 0.9143099659550504),
+[92mINFO [0m:      	                  (3, 0.9197586514426623),
+[92mINFO [0m:      	                  (4, 0.9251544421597422),
+[92mINFO [0m:      	                  (5, 0.9292750002898917),
+[92mINFO [0m:      	                  (6, 0.9294300001443211),
+[92mINFO [0m:      	                  (7, 0.9296525512503926),
+[92mINFO [0m:      	                  (8, 0.9313889115026102),
+[92mINFO [0m:      	                  (9, 0.9317643192419574),
+[92mINFO [0m:      	                  (10, 0.9310472011709445),
+[92mINFO [0m:      	                  (11, 0.9323439586658572),
+[92mINFO [0m:      	                  (12, 0.9321795402543553),
+[92mINFO [0m:      	                  (13, 0.9326128125341033),
+[92mINFO [0m:      	                  (14, 0.9327520313108508),
+[92mINFO [0m:      	                  (15, 0.9324400693471446)],
+[92mINFO [0m:      	 'val_pr_auc': [(0, 0.13654007461917222),
+[92mINFO [0m:      	                (1, 0.9272276977729621),
+[92mINFO [0m:      	                (2, 0.9519634012234212),
+[92mINFO [0m:      	                (3, 0.9563650743661561),
+[92mINFO [0m:      	                (4, 0.9581911590336241),
+[92mINFO [0m:      	                (5, 0.9594454229930418),
+[92mINFO [0m:      	                (6, 0.9599995258818785),
+[92mINFO [0m:      	                (7, 0.9604510805960998),
+[92mINFO [0m:      	                (8, 0.961061841699428),
+[92mINFO [0m:      	                (9, 0.961344433567539),
+[92mINFO [0m:      	                (10, 0.9617276872447101),
+[92mINFO [0m:      	                (11, 0.9617682032925234),
+[92mINFO [0m:      	                (12, 0.9621166721884447),
+[92mINFO [0m:      	                (13, 0.9623619757784913),
+[92mINFO [0m:      	                (14, 0.9625317755750713),
+[92mINFO [0m:      	                (15, 0.9626050949346929)],
+[92mINFO [0m:      	 'val_roc_auc': [(0, 0.33592094762355174),
+[92mINFO [0m:      	                 (1, 0.955597510560594),
+[92mINFO [0m:      	                 (2, 0.9847071208236207),
+[92mINFO [0m:      	                 (3, 0.9866860397132277),
+[92mINFO [0m:      	                 (4, 0.9875015613101027),
+[92mINFO [0m:      	                 (5, 0.987931162148421),
+[92mINFO [0m:      	                 (6, 0.9881323389950785),
+[92mINFO [0m:      	                 (7, 0.98832411479577),
+[92mINFO [0m:      	                 (8, 0.988465170052881),
+[92mINFO [0m:      	                 (9, 0.9886357007367428),
+[92mINFO [0m:      	                 (10, 0.9887990604938912),
+[92mINFO [0m:      	                 (11, 0.9888264106617067),
+[92mINFO [0m:      	                 (12, 0.9889318848285793),
+[92mINFO [0m:      	                 (13, 0.9890663108556172),
+[92mINFO [0m:      	                 (14, 0.9891201393561084),
+[92mINFO [0m:      	                 (15, 0.9892214060027407)]}
+[92mINFO [0m:      
+Done in 24.6s. Best round 15 (val_pr_auc 0.96261). Saved /Users/paladugugeetesh/Desktop/MPW-federated Learning/malware-fl-project/results/federated_logistic_regression_validation_rounds.json
+real 36.40
+user 20.39
+sys 23.78
