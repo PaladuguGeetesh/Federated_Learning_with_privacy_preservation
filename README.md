@@ -44,6 +44,17 @@ backend/, frontend/      empty placeholders — not implemented
   not modified). Centralized and federated runs use exactly the same training and
   validation rows. Decision thresholds are chosen on validation only.
 
+## Run everything with one command
+
+```bash
+source venv/bin/activate
+python run_project.py            # runs what is missing, then reports + tests; safe to re-run
+```
+
+It prints each stage's output in the terminal, writes `results/run_report.md`, and keeps full logs in `logs/`.
+Stages whose outputs already exist are skipped, so the held-out test set is never re-evaluated by accident.
+See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the data flow, every stage and its options.
+
 ## Setup
 
 ```bash
@@ -137,9 +148,11 @@ python -m results.print_final_metrics   # full test report for every model
 python -m results.print_convergence     # federated per-round validation tables
 python -m results.plot_comparison       # graphs/final_comparison_bar.png, final_comparison_metrics.png,
                                         # convergence_overlay.png, federated_{lr,ann}_convergence.png
+python -m results.plot_diagrams         # graphs/system_architecture.png, data_pipeline.png, federated_round_flow.png
 ```
 
-These read the saved result files only; they never evaluate a model.
+These read the saved result files only; they never evaluate a model. (`plot_diagrams` reads only dataset
+file metadata and `config.yaml`.)
 
 ## The test set is evaluated once per model
 

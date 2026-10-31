@@ -15,3 +15,6 @@ __pycache__/
 
 # Optuna study databases (binary, mutable; trial logs are exported as CSV)
 results/optuna/*.db
+
+# Run logs written by run_project.py
+logs/
