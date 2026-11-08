@@ -11,4 +11,4 @@ npm run preview  # serve the build on http://localhost:4173
 npm run data     # re-export src/data/*.json from the project files (uses ../venv)
 ```
 
-Needs Node 18 or newer. Data files: `src/data/dataset.json` and `src/data/results.json`, written by `scripts/export_data.py`.
+Needs Node.js 18 or newer (nothing else). Data files: `src/data/dataset.json` and `src/data/results.json`, written by `scripts/export_data.py`.

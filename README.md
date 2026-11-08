@@ -58,26 +58,37 @@ See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the data flow, every stage and its op
 
 ## Dashboard UI (React)
 
-A read-only dashboard in `frontend/` (React + Vite) shows the dataset columns, five real sample flows
-(normal and attack), the class distribution, the final test results, the confusion matrices and the
-federated / Optuna training curves. All numbers are exported from the saved project files.
+A read-only dashboard in `frontend/` (React + Vite) with five pages:
+
+| Page | Shows |
+|---|---|
+| Overview | headline result, pipeline steps, tuned ANN summary |
+| Architecture | system architecture, data pipeline and splits, one federated round, ANN architecture (each diagram explained; click to enlarge) |
+| Dataset | all 77 feature columns + label with ranges and means, five real sample flows (normal and attack), class distribution, splits |
+| Results | test-set metrics of the four models, errors, confusion matrices |
+| Training | federated rounds, per-client loss, Optuna trials, best hyperparameters |
+
+All numbers are exported from the saved project files in `results/` and `dataset/`.
+
+**Run it after cloning** (only Node.js 18 or newer is needed; no Python, data set or GPU):
 
 ```bash
-cd frontend
+git clone https://github.com/PaladuguGeetesh/Federated_Learning_with_privacy_preservation.git
+cd Federated_Learning_with_privacy_preservation/frontend
 npm install          # first time only
 npm run dev          # open http://localhost:5173   (or: npm start, which also opens the browser)
 ```
 
-Other commands (run inside `frontend/`):
+The exported data (`frontend/src/data/*.json`) and the diagrams (`frontend/public/diagrams/`) are committed,
+so the UI works straight after cloning. Other commands (run inside `frontend/`):
 
 ```bash
 npm run build        # production build in frontend/dist
 npm run preview      # serve the production build on http://localhost:4173
-npm run data         # re-export dataset.json and results.json (needs dataset/raw and results/; uses ../venv)
+npm run data         # re-export the JSON files; needs dataset/raw, results/ and the project venv (../venv)
 ```
 
-`npm run data` only reads files and never trains or evaluates a model. The exported JSON files are
-committed in `frontend/src/data/`, so the UI also runs without the data set.
+`npm run data` only reads files and never trains or evaluates a model.
 
 ## Setup
 
