@@ -18,3 +18,7 @@ results/optuna/*.db
 
 # Run logs written by run_project.py
 logs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

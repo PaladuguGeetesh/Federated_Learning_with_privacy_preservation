@@ -31,7 +31,8 @@ graphs/                  generated plots
 models/                  trained models / checkpoints (not in git)
 dataset/                 parquet data (not in git)
 tests/                   pytest suite (synthetic data only)
-backend/, frontend/      empty placeholders — not implemented
+frontend/                React dashboard (dataset columns, sample rows, results, training) — see "Dashboard UI"
+backend/                 empty placeholder — not implemented
 ```
 
 ## Data splits
@@ -54,6 +55,29 @@ python run_project.py            # runs what is missing, then reports + tests; s
 It prints each stage's output in the terminal, writes `results/run_report.md`, and keeps full logs in `logs/`.
 Stages whose outputs already exist are skipped, so the held-out test set is never re-evaluated by accident.
 See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the data flow, every stage and its options.
+
+## Dashboard UI (React)
+
+A read-only dashboard in `frontend/` (React + Vite) shows the dataset columns, five real sample flows
+(normal and attack), the class distribution, the final test results, the confusion matrices and the
+federated / Optuna training curves. All numbers are exported from the saved project files.
+
+```bash
+cd frontend
+npm install          # first time only
+npm run dev          # open http://localhost:5173   (or: npm start, which also opens the browser)
+```
+
+Other commands (run inside `frontend/`):
+
+```bash
+npm run build        # production build in frontend/dist
+npm run preview      # serve the production build on http://localhost:4173
+npm run data         # re-export dataset.json and results.json (needs dataset/raw and results/; uses ../venv)
+```
+
+`npm run data` only reads files and never trains or evaluates a model. The exported JSON files are
+committed in `frontend/src/data/`, so the UI also runs without the data set.
 
 ## Setup
 
