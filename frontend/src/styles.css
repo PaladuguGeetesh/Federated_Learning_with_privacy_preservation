@@ -261,3 +261,27 @@ code { font: 12.5px ui-monospace, Menlo, monospace; background: var(--surface-2)
 
 .tabs { overflow-x: auto; scrollbar-width: none; }
 .tabs button { white-space: nowrap; }
+
+/* training monitor */
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.file-btn { cursor: pointer; display: inline-block; }
+.sub { margin: 0 0 8px; font-size: 14px; color: var(--ink-2); }
+.cm-single { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 24px; align-items: center; }
+.anim svg { width: 100%; height: auto; display: block; background: var(--surface-2); border-radius: 14px; }
+.node { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+.node.busy { stroke: var(--s1); stroke-width: 2.5; }
+.node.server { stroke: var(--s2); } .node.server.busy { stroke-width: 3; }
+.node.val { stroke: var(--s3); }
+.t-title { font: 600 15px -apple-system, 'Segoe UI', sans-serif; fill: var(--ink); }
+.t-sub { font: 12px -apple-system, 'Segoe UI', sans-serif; fill: var(--ink-2); }
+.t-big { font: 700 18px -apple-system, 'Segoe UI', sans-serif; fill: var(--ink); }
+.arrow { stroke-width: 2; opacity: 0.28; fill: none; }
+.arrow.blue { stroke: var(--s1); } .arrow.orange { stroke: var(--s2); } .arrow.green { stroke: var(--s3); }
+.arrow.flow { opacity: 1; stroke-width: 3; stroke-dasharray: 8 6; animation: dash 0.6s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -14; } }
+@media (prefers-reduced-motion: reduce) { .arrow.flow { animation: none; } }
+.anim-label { margin: 10px 2px 6px; font-weight: 600; }
+.anim-steps { display: flex; gap: 4px; flex-wrap: wrap; }
+.dot { width: 14px; height: 6px; border-radius: 3px; background: var(--border); }
+.dot.past { background: var(--ink-3); } .dot.now { background: var(--accent); width: 22px; }
+@media (max-width: 960px) { .cm-single { grid-template-columns: 1fr; } }

@@ -23,4 +23,9 @@ export const api = {
   quickEval: (body) => call('/api/quick-eval', body),
   startJob: (body) => call('/api/jobs', body),
   job: (id) => call(`/api/jobs/${id}`),
+  stopJob: (id) => call(`/api/jobs/${id}/stop`, {}),
+  history: () => call('/api/history'),
+  clearHistory: () => fetch('/api/history', { method: 'DELETE' }).then((r) => r.json()),
+  comm: () => call('/api/comm'),
+  predictRows: (body) => call('/api/predict-rows', body),
 }

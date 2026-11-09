@@ -62,7 +62,7 @@ See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the data flow, every stage and its op
 |---|---|---|
 | Run the whole pipeline (data → models → results → tests) | `source venv/bin/activate` then `python run_project.py` | `venv`, `dataset/raw/` |
 | Open the dashboard (all pages except Live test) | `cd frontend && npm install && npm run dev` → http://localhost:5173 | Node.js 18+ only |
-| Also use the **Live test** page | In a 2nd terminal: `source venv/bin/activate && uvicorn backend.main:app --port 8000` | `venv`, `models/`, `dataset/` |
+| Also use the **Live test** and **Training monitor** pages | In a 2nd terminal: `source venv/bin/activate && uvicorn backend.main:app --port 8000` | `venv`, `models/`, `dataset/` |
 | Run only the 80 tests | `source venv/bin/activate && python -m pytest -q` | `venv` |
 
 First-time setup of the Python side: `python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
@@ -70,7 +70,7 @@ First-time setup of the Python side: `python -m venv venv && source venv/bin/act
 
 ## Dashboard UI (React)
 
-A dashboard in `frontend/` (React + Vite) with six pages (five read-only, plus the Live test page that calls the backend):
+A dashboard in `frontend/` (React + Vite) with seven pages (five read-only; **Live test** and **Training monitor** call the backend):
 
 | Page | Shows |
 |---|---|
@@ -78,7 +78,8 @@ A dashboard in `frontend/` (React + Vite) with six pages (five read-only, plus t
 | Architecture | system architecture, data pipeline and splits, one federated round, ANN architecture (each diagram explained; click to enlarge) |
 | Dataset | all 77 feature columns + label with ranges and means, five real sample flows (normal and attack), class distribution, splits |
 | Results | test-set metrics of the four models, errors, confusion matrices |
-| Live test | **needs the backend**: pick a real flow (normal or attack) and test it with the four models, edit feature values, move the decision thresholds, test all 40 sample flows, re-evaluate N validation rows, run the 80 tests, run a mini federated training |
+| Live test | **needs the backend**: pick a real flow (normal or attack) and test it with the four models, edit feature values, move the decision thresholds, test all 40 sample flows, upload your own CSV of flows, re-evaluate N validation rows (with confusion matrices), run the 80 tests |
+| Training monitor | **needs the backend**: start / stop a 1–5 round federated run and watch it live: round animation driven by the Flower server, global loss / accuracy / F1 / recall, client-wise training loss, confusion matrix, privacy and communication monitor (bytes per round, rows kept local), run history |
 | Training | federated rounds, per-client loss, Optuna trials, best hyperparameters |
 
 All numbers are exported from the saved project files in `results/` and `dataset/`.
@@ -117,7 +118,7 @@ uvicorn backend.main:app --port 8000   # API on http://localhost:8000 (docs at /
 Then run the UI (`cd frontend && npm run dev`) and open the **Live test** tab; the Vite dev server forwards `/api` to port 8000.
 The other tabs work without the backend. The 40 sample flows are in `backend/demo_samples.json`
 (rebuild with `python backend/export_samples.py`). Only quick jobs are exposed: single and batch predictions (milliseconds),
-a re-evaluation of random validation rows (seconds), the test suite (3 s) and a 1–5 round federated run (10–25 s) that
+a re-evaluation of random validation rows (seconds), CSV scoring, the test suite (3 s) and a 1–5 round federated run (10–25 s, with a stop button) that
 writes to `backend/.runtime/` only. The one-time held-out test evaluation is deliberately not repeatable from the UI.
 
 ## Setup

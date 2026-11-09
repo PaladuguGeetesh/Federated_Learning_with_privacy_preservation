@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Overview from './pages/Overview.jsx'
 import ArchitecturePage from './pages/ArchitecturePage.jsx'
 import DatasetPage from './pages/DatasetPage.jsx'
+import MonitorPage from './pages/MonitorPage.jsx'
 import LiveTestPage from './pages/LiveTestPage.jsx'
 import ResultsPage from './pages/ResultsPage.jsx'
 import TrainingPage from './pages/TrainingPage.jsx'
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'dataset', label: 'Dataset', Page: DatasetPage },
   { id: 'results', label: 'Results', Page: ResultsPage },
   { id: 'live', label: 'Live test', Page: LiveTestPage },
+  { id: 'monitor', label: 'Training monitor', Page: MonitorPage },
   { id: 'training', label: 'Training', Page: TrainingPage },
 ]
 

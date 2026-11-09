@@ -186,8 +186,16 @@ cd frontend && npm run dev                  # terminal 2: UI at http://localhost
 | `POST /api/predict` | scores one flow (a sample id or edited feature values) with the four models | ms |
 | `POST /api/predict-batch` | scores the 40 sample flows in `backend/demo_samples.json` | ms |
 | `POST /api/quick-eval` | scores N random validation rows (scores cached per N and seed; thresholds adjustable) | seconds |
+| `POST /api/predict-rows` | scores up to 2,000 uploaded rows (CSV in the UI) | ms–s |
 | `POST /api/jobs` | background job: `tests` (pytest) or `federated` (1–5 FedAvg rounds into `backend/.runtime/`) | 3 s / 10–25 s |
-| `GET /api/jobs/{id}` | status, live log and result of a job | ms |
+| `GET /api/jobs/{id}` | status, log, live per-round progress (`rounds_live`) and result of a job | ms |
+| `POST /api/jobs/{id}/stop` | stops a running job (and its Ray workers) | ms |
+| `GET /api/history`, `DELETE /api/history` | finished runs kept in `backend/.runtime/history.json` | ms |
+| `GET /api/comm` | values and bytes exchanged per round and the rows kept on each client, computed from the models and client files | ms |
+
+The **Training monitor** reads the progress of a run from `FEDLOG {json}` lines that `federated/server.py` prints after each aggregation and each
+validation (logging only; training and the saved results are unchanged). The round animation replays those real events one after another so
+that fast rounds stay visible; it shows no step that did not happen.
 
 Safety: the held-out test set is never scored in bulk by the API (the one-time evaluation stays in `results/`), mini federated runs write
 only to `backend/.runtime/` (git-ignored), and the sample flows are single-row demonstrations. To rebuild the sample file run

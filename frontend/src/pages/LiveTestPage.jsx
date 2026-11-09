@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api.js'
-import { Card, Chip, Stat, PageTitle, Segmented, Legend, ChartTip } from '../components/ui.jsx'
+import { Card, Chip, Stat, PageTitle, Segmented } from '../components/ui.jsx'
 import { cell, int, pct, fixed } from '../format.js'
-import { colorFor } from './Overview.jsx'
 
 const MODEL_ORDER = ['Federated ANN', 'Centralized ANN', 'Centralized RF', 'Federated LR']
 const COLOR = { 'Federated ANN': 'var(--s1)', 'Centralized ANN': 'var(--s2)', 'Centralized RF': 'var(--s3)', 'Federated LR': 'var(--s4)' }
 const KEY_FEATURES = ['Protocol', 'Flow Duration', 'Total Fwd Packets', 'Flow Packets/s']
 
+export { useJob, LogBox }
 export default function LiveTestPage() {
   const [health, setHealth] = useState(null)
   const [err, setErr] = useState('')
@@ -45,6 +44,7 @@ export default function LiveTestPage() {
       <TrySample bank={bank} thr={thr} />
       <BatchTest bank={bank} thr={thr} />
       <QuickEval thr={thr} />
+      <UploadFlows bank={bank} thr={thr} />
       <Jobs />
       <Card title="What cannot be re-run here" subtitle="By design">
         <ul className="notes">
@@ -335,6 +335,122 @@ function QuickEval({ thr }) {
             </table>
           </div>
           <p className="muted small">* {res.note}</p>
+          <div className="cm-grid">
+            {MODEL_ORDER.filter((m) => res.models[m]).map((m) => <ConfusionMini key={m} name={m} x={res.models[m].metrics} />)}
+          </div>
+        </>
+      )}
+    </Card>
+  )
+}
+
+function ConfusionMini({ name, x }) {
+  const rows = [
+    { l: 'Benign', total: x.tn + x.fp, cells: [{ v: x.tn, ok: true }, { v: x.fp, ok: false }] },
+    { l: 'Attack', total: x.fn + x.tp, cells: [{ v: x.fn, ok: false }, { v: x.tp, ok: true }] },
+  ]
+  return (
+    <figure className="cm">
+      <figcaption><span className="swatch" style={{ background: COLOR[name] }} /> {name}</figcaption>
+      <div className="cm-table">
+        <span /><span className="cm-h">Pred. benign</span><span className="cm-h">Pred. attack</span>
+        {rows.map((r) => (
+          <Fragment key={r.l}>
+            <span className="cm-h left">True {r.l.toLowerCase()}</span>
+            {r.cells.map((c, i) => {
+              const share = r.total ? c.v / r.total : 0
+              return (
+                <div key={i} className={`cm-cell ${c.ok ? 'ok' : 'err'}`} style={{ '--a': c.ok ? 0.1 + share * 0.3 : Math.min(0.1 + share * 40, 0.5) }}>
+                  <b>{int(c.v)}</b><span>{pct(share, 2)}</span>
+                </div>
+              )
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </figure>
+  )
+}
+
+/* ---------------------------------------------------------------- upload your own flows */
+function parseCsv(text) {
+  const lines = text.replace(/\r/g, '').split('\n').filter((l) => l.trim())
+  if (lines.length < 2) throw new Error('The file needs a header row and at least one data row.')
+  const head = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+  return { head, rows: lines.slice(1).map((l) => l.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))) }
+}
+
+function UploadFlows({ bank, thr }) {
+  const [res, setRes] = useState(null)
+  const [meta, setMeta] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const downloadSample = () => {
+    const head = [...bank.feature_names, 'label']
+    const csv = [head.join(','), ...bank.samples.slice(0, 12).map((s) => [...bank.feature_names.map((f) => s.features[f]), s.label].join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'sample_flows.csv'; a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErr(''); setRes(null); setBusy(true)
+    try {
+      const { head, rows } = parseCsv(await file.text())
+      const missing = bank.feature_names.filter((f) => !head.includes(f))
+      if (missing.length) throw new Error(`Missing ${missing.length} feature column(s), for example “${missing[0]}”. Download the sample CSV to see the format.`)
+      if (rows.length > 2000) throw new Error('At most 2,000 rows per upload.')
+      const labelCol = head.findIndex((h) => h.toLowerCase() === 'label')
+      const feats = rows.map((r) => Object.fromEntries(bank.feature_names.map((f) => [f, Number(r[head.indexOf(f)])])))
+      if (feats.some((r) => Object.values(r).some((v) => !Number.isFinite(v)))) throw new Error('Some feature values are not numbers.')
+      let labels = null
+      if (labelCol >= 0) labels = rows.map((r) => (/^(0|benign|normal)$/i.test(r[labelCol]) ? 0 : 1))
+      setMeta({ name: file.name, n: rows.length, labels })
+      setRes(await api.predictRows({ rows: feats, labels, thresholds: thr }))
+    } catch (x) { setErr(x.message) } finally { setBusy(false); e.target.value = '' }
+  }
+
+  return (
+    <Card title="4 · Test your own flows" subtitle="Upload a CSV with the 77 feature columns (and optionally a label column: 0/1 or Benign/attack name). Up to 2,000 rows."
+      right={<div className="try-actions"><button className="btn" onClick={downloadSample}>Download sample CSV</button><label className="btn primary file-btn">{busy ? 'Scoring…' : 'Choose CSV file'}<input type="file" accept=".csv,text/csv" onChange={onFile} hidden /></label></div>}>
+      {err && <p className="error">{err}</p>}
+      {!res && !err && <div className="empty">No file yet. Use the sample CSV as a template.</div>}
+      {res && meta && (
+        <>
+          <p className="muted small">{meta.name}: {int(meta.n)} flows scored at the thresholds above.</p>
+          {meta.labels ? (
+            <div className="stat-grid">
+              {MODEL_ORDER.filter((m) => res.summary[m]).map((m) => {
+                const s = res.summary[m]
+                return <Stat key={m} label={m} value={`${s.correct} / ${s.total}`} hint={`${s.fn} missed attacks · ${s.fp} false alarms`} />
+              })}
+            </div>
+          ) : (
+            <div className="stat-grid">
+              {MODEL_ORDER.map((m) => <Stat key={m} label={m} value={`${res.rows[m].pred.filter((v) => v === 1).length} attacks`} hint={`of ${meta.n} flows flagged`} />)}
+            </div>
+          )}
+          <div className="table-wrap tall short">
+            <table className="tbl">
+              <thead><tr><th className="r">#</th>{meta.labels && <th>True</th>}{MODEL_ORDER.map((m) => <th key={m} className="r">{m}</th>)}</tr></thead>
+              <tbody>
+                {Array.from({ length: Math.min(meta.n, 50) }, (_, i) => (
+                  <tr key={i}>
+                    <td className="r muted">{i + 1}</td>
+                    {meta.labels && <td><Chip attack={meta.labels[i] === 1}>{meta.labels[i] === 1 ? 'Attack' : 'Benign'}</Chip></td>}
+                    {MODEL_ORDER.map((m) => {
+                      const r = res.rows[m]; const bad = meta.labels && r.pred[i] !== meta.labels[i]
+                      return <td key={m} className={`r ${bad ? 'bad-cell' : ''}`}>{r.pred[i] ? 'Attack' : 'Benign'} <span className="muted">{(r.prob[i] * 100).toFixed(1)}%</span></td>
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {meta.n > 50 && <p className="muted small">Showing the first 50 of {int(meta.n)} rows.</p>}
         </>
       )}
     </Card>
@@ -365,63 +481,18 @@ function LogBox({ lines }) {
 
 function Jobs() {
   const tests = useJob()
-  const fed = useJob()
-  const [model, setModel] = useState('logistic_regression')
-  const [rounds, setRounds] = useState(3)
-  const [epochs, setEpochs] = useState(1)
-  const r = fed.job?.result
-  const chart = r ? r.history.filter((h) => h.round >= 1).map((h) => ({ round: h.round, 'Validation PR-AUC': h.val_pr_auc, 'Validation F1': h.val_f1 })) : []
-
   return (
-    <div className="grid-2">
-      <Card title="4 · Run the automated tests" subtitle="The project’s 80 tests (synthetic data only; they never touch the real data). Takes about 3 seconds."
-        right={<button className="btn primary" disabled={tests.running || fed.running} onClick={() => tests.start({ kind: 'tests' })}>{tests.running ? 'Running…' : 'Run tests'}</button>}>
-        {tests.err && <p className="error">{tests.err}</p>}
-        {tests.job && (
-          <>
-            {tests.job.status === 'done' && tests.job.result?.passed != null && <p className="ok-line">✓ {tests.job.result.passed} passed, {tests.job.result.failed} failed in {tests.job.result.pytest_seconds}s</p>}
-            {tests.job.status === 'failed' && <p className="error">The tests did not pass. See the log.</p>}
-            <LogBox lines={tests.job.log} />
-          </>
-        )}
-        {!tests.job && !tests.err && <div className="empty">Press Run tests.</div>}
-      </Card>
-
-      <Card title="5 · Mini federated run" subtitle="Runs real FedAvg rounds across clients A, B and C and shows the validation scores per round. Results go to a temporary folder; the saved models and results are not changed.">
-        <div className="controls">
-          <label>Model
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="logistic_regression">Logistic Regression (about 10 s)</option>
-              <option value="ann">ANN (about 20 s)</option>
-            </select>
-          </label>
-          <label>Rounds <b>{rounds}</b><input type="range" min="1" max="5" value={rounds} onChange={(e) => setRounds(+e.target.value)} /></label>
-          <label>Local epochs <b>{epochs}</b><input type="range" min="1" max="2" value={epochs} onChange={(e) => setEpochs(+e.target.value)} /></label>
-          <button className="btn primary" disabled={fed.running || tests.running} onClick={() => fed.start({ kind: 'federated', model, rounds, local_epochs: epochs })}>{fed.running ? `Running… ${Math.round(fed.job.elapsed || 0)} s` : 'Start run'}</button>
-        </div>
-        {fed.err && <p className="error">{fed.err}</p>}
-        {fed.job?.status === 'failed' && <p className="error">The run failed. See the log.</p>}
-        {r && (
-          <>
-            <p className="ok-line">✓ {r.rounds} rounds × {r.local_epochs} local epoch(s) in {r.seconds.toFixed(1)} s · best round {r.best_round} · validation PR-AUC {fixed(r.best_val_pr_auc, 4)}</p>
-            <Legend items={[{ label: 'Validation PR-AUC', color: 'var(--s1)' }, { label: 'Validation F1', color: 'var(--s2)' }]} />
-            <div className="chart">
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chart} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
-                  <CartesianGrid vertical={false} stroke="var(--grid)" />
-                  <XAxis dataKey="round" type="number" domain={[1, Math.max(2, r.rounds)]} allowDecimals={false} tick={{ fill: 'var(--ink-2)', fontSize: 12 }} tickLine={false} axisLine={{ stroke: 'var(--grid)' }} />
-                  <YAxis domain={[(m) => Math.max(0, Math.floor((m - 0.02) * 100) / 100), 1]} tick={{ fill: 'var(--ink-2)', fontSize: 12 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => v.toFixed(2)} />
-                  <Tooltip content={<ChartTip labelPrefix="Round " format={(v) => fixed(v, 4)} />} />
-                  <Line dataKey="Validation PR-AUC" stroke="var(--s1)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
-                  <Line dataKey="Validation F1" stroke="var(--s2)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
-        {fed.job && <LogBox lines={fed.job.log.filter((l) => !/^\s*$/.test(l)).slice(-14)} />}
-        {!fed.job && !fed.err && <div className="empty">Choose the model, rounds and local epochs, then press Start run.</div>}
-      </Card>
-    </div>
+    <Card title="5 · Run the automated tests" subtitle="The project’s 80 tests (synthetic data only; they never touch the real data). Takes about 3 seconds. For federated training runs, see the Training monitor tab."
+      right={<button className="btn primary" disabled={tests.running} onClick={() => tests.start({ kind: 'tests' })}>{tests.running ? 'Running…' : 'Run tests'}</button>}>
+      {tests.err && <p className="error">{tests.err}</p>}
+      {tests.job && (
+        <>
+          {tests.job.status === 'done' && tests.job.result?.passed != null && <p className="ok-line">✓ {tests.job.result.passed} passed, {tests.job.result.failed} failed in {tests.job.result.pytest_seconds}s</p>}
+          {tests.job.status === 'failed' && <p className="error">The tests did not pass. See the log.</p>}
+          <LogBox lines={tests.job.log} />
+        </>
+      )}
+      {!tests.job && !tests.err && <div className="empty">Press Run tests.</div>}
+    </Card>
   )
 }

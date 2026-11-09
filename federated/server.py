@@ -99,6 +99,10 @@ class FedAvgWithBuffers(fl.server.strategy.FedAvg):
             "bn_buffer_arrays_aggregated": len(new_buffers),
         })
         metrics = {"client_train_loss": train_loss, "bn_buffer_arrays_aggregated": len(new_buffers)}
+        # Machine-readable progress line (read by the dashboard backend); logging only, no effect on training.
+        print("FEDLOG " + json.dumps({"event": "fit", "round": server_round, "clients": self.round_log[-1]["clients"],
+                                      "train_loss": train_loss, "arrays": len(new_trainable),
+                                      "values_per_client": int(sum(a.size for a in new_trainable))}), flush=True)
         return ndarrays_to_parameters(new_trainable + new_buffers), metrics
 
 
@@ -173,6 +177,10 @@ class RoundEvaluator:
                 self.manager.save_best(checkpoint)
             self.manager.save_latest(checkpoint)
 
+        print("FEDLOG " + json.dumps({"event": "val", "round": server_round, "val_loss": loss, "pr_auc": m.pr_auc,
+                                      "roc_auc": m.roc_auc, "f1": m.f1, "accuracy": m.accuracy, "precision": m.precision,
+                                      "recall": m.recall, "fpr": m.fpr, "tp": m.tp, "fp": m.fp, "tn": m.tn, "fn": m.fn,
+                                      "seconds": record["elapsed_seconds"]}), flush=True)
         print(f"[round {server_round:>3}] val_loss {loss:.5f}  val_pr_auc {m.pr_auc:.5f}  macro_f1 {m.macro_f1:.5f}  "
               f"attack_recall {m.recall:.5f}  FN {m.fn:,}  FPR {m.fpr:.5f}", flush=True)
         return loss, {k: v for k, v in record.items() if k not in ("round",)}

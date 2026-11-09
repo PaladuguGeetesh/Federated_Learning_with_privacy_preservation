@@ -13,9 +13,9 @@ npm run data     # re-export src/data/*.json from the project files (uses ../ven
 
 Needs Node.js 18 or newer (nothing else). Data files: `src/data/dataset.json` and `src/data/results.json`, written by `scripts/export_data.py`.
 
-## Live test page
+## Live test and Training monitor pages
 
-The Live test tab needs the Python backend (it loads the trained models). From the project root, in a second terminal:
+The Live test and Training monitor tabs need the Python backend (it loads the trained models). From the project root, in a second terminal:
 
 ```bash
 source venv/bin/activate

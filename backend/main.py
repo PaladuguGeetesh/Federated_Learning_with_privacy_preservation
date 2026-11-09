@@ -9,15 +9,21 @@ What it offers (everything here is fast; nothing re-trains the big models):
   POST /api/predict        score one flow (a sample id or edited feature values) with all four models
   POST /api/predict-batch  score several samples with all four models
   POST /api/quick-eval     re-score N random *validation* rows (cached) with adjustable thresholds
+  POST /api/predict-rows   score uploaded rows (CSV in the UI) with all four models
   POST /api/jobs           start a background job: "tests" (pytest) or "federated" (mini FedAvg run)
-  GET  /api/jobs/{id}      status, live log and result of a job
+  GET  /api/jobs/{id}      status, live log, per-round progress and result of a job
+  POST /api/jobs/{id}/stop stop a running job
+  GET  /api/history        finished runs (kept in backend/.runtime/history.json)
+  GET  /api/comm           what is exchanged per round (weights) versus what stays local (training rows)
 
 The held-out test set is never scored in bulk here: the official one-time test evaluation is stored in results/.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -214,6 +220,36 @@ def predict_batch(req: BatchRequest) -> dict[str, Any]:
             "rows": {name: {"prob": r["prob"], "pred": r["pred"]} for name, r in res.items()}}
 
 
+class RowsRequest(BaseModel):
+    rows: list[dict[str, float]] = Field(..., max_length=2000)
+    labels: list[int] | None = None
+    thresholds: dict[str, float] | None = None
+
+
+@app.post("/api/predict-rows")
+def predict_rows(req: RowsRequest) -> dict[str, Any]:
+    need_models()
+    if not req.rows:
+        raise HTTPException(422, "No rows")
+    for i, r in enumerate(req.rows[:50]):
+        missing = [f for f in FEATURES if f not in r]
+        if missing:
+            raise HTTPException(422, f"Row {i + 1} is missing features such as {missing[:3]}")
+    X = np.array([[r[f] for f in FEATURES] for r in req.rows], dtype=np.float64)
+    if not np.isfinite(X).all():
+        raise HTTPException(422, "Rows contain non-finite values")
+    res = _predict_rows(X, req.thresholds)
+    out = {"n": len(req.rows), "rows": {k: {"prob": v["prob"], "pred": v["pred"]} for k, v in res.items()}, "summary": {}}
+    if req.labels is not None and len(req.labels) == len(req.rows):
+        y = req.labels
+        for k, v in res.items():
+            p_ = v["pred"]
+            out["summary"][k] = {"correct": sum(1 for a, b in zip(y, p_) if a == b), "total": len(y),
+                                 "fn": sum(1 for a, b in zip(y, p_) if a == 1 and b == 0),
+                                 "fp": sum(1 for a, b in zip(y, p_) if a == 0 and b == 1)}
+    return out
+
+
 _VAL: dict[str, Any] = {}
 _PROBS: dict[tuple, np.ndarray] = {}
 _LOCK = threading.Lock()
@@ -261,23 +297,66 @@ def quick_eval(req: QuickEvalRequest) -> dict[str, Any]:
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 JOBS: dict[str, dict[str, Any]] = {}
 _JOB_LOCK = threading.Lock()
+HISTORY_FILE = RUNTIME / "history.json"
+_HIST_LOCK = threading.Lock()
+
+
+def _read_history() -> list[dict[str, Any]]:
+    try:
+        return json.loads(HISTORY_FILE.read_text())
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def _save_history(job: dict[str, Any]) -> None:
+    entry = {"id": job["id"], "kind": job["kind"], "status": job["status"], "params": job["params"],
+             "started": job["started"], "seconds": job.get("seconds"), "result": None}
+    r = job.get("result")
+    if job["kind"] == "federated" and r:
+        last = r["history"][-1] if r["history"] else {}
+        entry["result"] = {"rounds": r["rounds"], "local_epochs": r["local_epochs"], "best_round": r["best_round"],
+                           "best_val_pr_auc": r["best_val_pr_auc"], "final": last}
+    elif job["kind"] == "tests" and r:
+        entry["result"] = r
+    with _HIST_LOCK:
+        RUNTIME.mkdir(parents=True, exist_ok=True)
+        h = _read_history()
+        h.append(entry)
+        HISTORY_FILE.write_text(json.dumps(h[-50:], indent=1))
 
 
 def _run_job(job: dict[str, Any], cmd: list[str], finish) -> None:
     try:
-        proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        job["pid"] = proc.pid
+        proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                start_new_session=True)
+        job["proc"] = proc
         for line in proc.stdout:  # type: ignore[union-attr]
-            job["log"].append(ANSI.sub("", line.rstrip("\n")))
+            line = ANSI.sub("", line.rstrip("\n"))
+            if line.startswith("FEDLOG "):
+                try:
+                    ev = json.loads(line[7:])
+                    job["rounds"].setdefault(ev["round"], {"round": ev["round"]})[ev["event"]] = ev
+                    job["phase"] = {"event": ev["event"], "round": ev["round"]}
+                except ValueError:
+                    pass
+                continue
+            m = re.search(r"\[ROUND (\d+)\]", line)
+            if m:
+                job["phase"] = {"event": "start", "round": int(m.group(1))}
+            job["log"].append(line)
             job["log"] = job["log"][-400:]
         code = proc.wait()
         job["exit_code"] = code
-        job["result"] = finish(job, code)
-        job["status"] = "done" if code == 0 else "failed"
+        if job.get("stopped"):
+            job["status"] = "stopped"
+        else:
+            job["result"] = finish(job, code)
+            job["status"] = "done" if code == 0 else "failed"
     except Exception as exc:
         job["log"].append(f"{type(exc).__name__}: {exc}")
         job["status"] = "failed"
     job["seconds"] = time.time() - job["started"]
+    _save_history(job)
 
 
 def _finish_tests(job: dict[str, Any], code: int) -> dict[str, Any]:
@@ -294,7 +373,10 @@ def _finish_fed(job: dict[str, Any], code: int) -> dict[str, Any] | None:
     d = json.loads(f.read_text())
     hist = []
     for h in d["history"]:
-        hist.append({k: h.get(k) for k in ("round", "val_loss", "val_pr_auc", "val_f1", "val_attack_recall", "val_fpr", "val_false_negatives")})
+        row = {k: h.get(k) for k in ("round", "val_loss", "val_pr_auc", "val_f1", "val_attack_recall", "val_fpr", "val_false_negatives")}
+        if "fit" in h:
+            row["clients"] = h["fit"]["clients"]
+        hist.append(row)
     return {"rounds": d["rounds"], "local_epochs": d["local_epochs"], "seconds": d["wall_clock_seconds"],
             "best_round": d["best_round_by_val_pr_auc"], "best_val_pr_auc": d["best_val_pr_auc"], "history": hist,
             "note": "Written to backend/.runtime only; the saved project results and models are untouched."}
@@ -307,7 +389,7 @@ def start_job(req: JobRequest) -> dict[str, Any]:
             raise HTTPException(409, "Another job is still running")
         jid = uuid.uuid4().hex[:8]
         job: dict[str, Any] = {"id": jid, "kind": req.kind, "status": "running", "started": time.time(), "log": [],
-                               "params": req.model_dump(), "result": None}
+                               "params": req.model_dump(), "result": None, "rounds": {}, "phase": None}
         if req.kind == "tests":
             cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
             finish = _finish_tests
@@ -328,9 +410,11 @@ def start_job(req: JobRequest) -> dict[str, Any]:
 
 
 def _public(job: dict[str, Any]) -> dict[str, Any]:
+    rounds = [job["rounds"][k] for k in sorted(job["rounds"])]
     return {"id": job["id"], "kind": job["kind"], "status": job["status"], "params": job["params"],
             "elapsed": (time.time() - job["started"]) if job["status"] == "running" else job.get("seconds"),
-            "log": job["log"][-60:], "result": job["result"], "exit_code": job.get("exit_code")}
+            "log": job["log"][-60:], "result": job["result"], "exit_code": job.get("exit_code"),
+            "rounds_live": rounds, "phase": job.get("phase")}
 
 
 @app.get("/api/jobs/{jid}")
@@ -338,3 +422,65 @@ def get_job(jid: str) -> dict[str, Any]:
     if jid not in JOBS:
         raise HTTPException(404, "Unknown job")
     return _public(JOBS[jid])
+
+
+@app.post("/api/jobs/{jid}/stop")
+def stop_job(jid: str) -> dict[str, Any]:
+    job = JOBS.get(jid)
+    if job is None:
+        raise HTTPException(404, "Unknown job")
+    if job["status"] != "running":
+        return _public(job)
+    job["stopped"] = True
+    proc = job.get("proc")
+    if proc is not None:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    # Ray starts helper processes of its own; stop them too so no worker keeps running in the background.
+    subprocess.run([sys.executable, "-m", "ray.scripts.scripts", "stop", "--force"], cwd=ROOT, capture_output=True, timeout=60)
+    return _public(job)
+
+
+@app.get("/api/history")
+def history() -> list[dict[str, Any]]:
+    return list(reversed(_read_history()))
+
+
+@app.delete("/api/history")
+def clear_history() -> dict[str, Any]:
+    with _HIST_LOCK:
+        if HISTORY_FILE.exists():
+            HISTORY_FILE.unlink()
+    return {"cleared": True}
+
+
+@app.get("/api/comm")
+def comm() -> dict[str, Any]:
+    """What a federated round exchanges, computed from the saved models and the client files."""
+    import pyarrow.parquet as pq
+    out: dict[str, Any] = {"models": {}}
+    for name, key in (("Federated ANN", "ann"), ("Federated LR", "lr")):
+        m = MODELS.get(name)
+        if m is None:
+            continue
+        layers = [{"name": n, "shape": list(p.shape), "values": int(p.numel())} for n, p in m.model.named_parameters()]
+        total = sum(layer["values"] for layer in layers)
+        out["models"][key] = {"name": name, "layers": layers, "values": total, "bytes_per_client_per_round_each_way": total * 4,
+                              "threshold": m.threshold}
+    clients = []
+    for cid in "ABC":
+        f = ROOT / "dataset" / f"client_{cid}.parquet"
+        rows = pq.ParquetFile(f).metadata.num_rows if f.exists() else None
+        train = int(rows * (1 - CFG.data.val_fraction)) if rows else None
+        clients.append({"client": cid, "rows": rows, "train_rows": train,
+                        "raw_feature_bytes": train * len(FEATURES) * 4 if train else None})
+    out["clients"] = clients
+    out["weights"] = [{"client": c["client"], "share": (c["train_rows"] or 0) / max(1, sum(x["train_rows"] or 0 for x in clients))} for c in clients]
+    out["n_features"] = len(FEATURES)
+    out["notes"] = ["During training each client sends only its weights and its sample count; its training rows stay on the client.",
+                    "In this single-machine simulation the server reads the clients' validation slices and scaler statistics directly "
+                    "to score each round; a real deployment would send validation predictions or metrics instead.",
+                    "No secure aggregation or differential privacy is applied, so no formal privacy guarantee is claimed."]
+    return out
