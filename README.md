@@ -31,8 +31,8 @@ graphs/                  generated plots
 models/                  trained models / checkpoints (not in git)
 dataset/                 parquet data (not in git)
 tests/                   pytest suite (synthetic data only)
-frontend/                React dashboard (dataset columns, sample rows, results, training) — see "Dashboard UI"
-backend/                 empty placeholder — not implemented
+frontend/                React dashboard (dataset, results, training, diagrams, Live test) — see "Dashboard UI"
+backend/                 FastAPI service for the Live test page (main.py, demo_samples.json, export_samples.py)
 ```
 
 ## Data splits
@@ -56,9 +56,21 @@ It prints each stage's output in the terminal, writes `results/run_report.md`, a
 Stages whose outputs already exist are skipped, so the held-out test set is never re-evaluated by accident.
 See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the data flow, every stage and its options.
 
+## Quick start: how to run
+
+| I want to… | Commands (from the project root) | Needs |
+|---|---|---|
+| Run the whole pipeline (data → models → results → tests) | `source venv/bin/activate` then `python run_project.py` | `venv`, `dataset/raw/` |
+| Open the dashboard (all pages except Live test) | `cd frontend && npm install && npm run dev` → http://localhost:5173 | Node.js 18+ only |
+| Also use the **Live test** page | In a 2nd terminal: `source venv/bin/activate && uvicorn backend.main:app --port 8000` | `venv`, `models/`, `dataset/` |
+| Run only the 80 tests | `source venv/bin/activate && python -m pytest -q` | `venv` |
+
+First-time setup of the Python side: `python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
+`models/` and `dataset/` are not in git; create them with `python run_project.py` (see [HOW_IT_WORKS.md](HOW_IT_WORKS.md)).
+
 ## Dashboard UI (React)
 
-A read-only dashboard in `frontend/` (React + Vite) with five pages:
+A dashboard in `frontend/` (React + Vite) with six pages (five read-only, plus the Live test page that calls the backend):
 
 | Page | Shows |
 |---|---|
@@ -66,6 +78,7 @@ A read-only dashboard in `frontend/` (React + Vite) with five pages:
 | Architecture | system architecture, data pipeline and splits, one federated round, ANN architecture (each diagram explained; click to enlarge) |
 | Dataset | all 77 feature columns + label with ranges and means, five real sample flows (normal and attack), class distribution, splits |
 | Results | test-set metrics of the four models, errors, confusion matrices |
+| Live test | **needs the backend**: pick a real flow (normal or attack) and test it with the four models, edit feature values, move the decision thresholds, test all 40 sample flows, re-evaluate N validation rows, run the 80 tests, run a mini federated training |
 | Training | federated rounds, per-client loss, Optuna trials, best hyperparameters |
 
 All numbers are exported from the saved project files in `results/` and `dataset/`.
@@ -89,6 +102,23 @@ npm run data         # re-export the JSON files; needs dataset/raw, results/ and
 ```
 
 `npm run data` only reads files and never trains or evaluates a model.
+
+### Live test page (needs the Python backend)
+
+The Live test page calls a small FastAPI backend (`backend/`) that loads the trained models. Start it in a **second terminal**
+from the project root (needs the `venv`, `models/` and `dataset/`, which are not in git):
+
+```bash
+source venv/bin/activate
+pip install -r requirements.txt        # first time only (adds fastapi and uvicorn)
+uvicorn backend.main:app --port 8000   # API on http://localhost:8000 (docs at /docs)
+```
+
+Then run the UI (`cd frontend && npm run dev`) and open the **Live test** tab; the Vite dev server forwards `/api` to port 8000.
+The other tabs work without the backend. The 40 sample flows are in `backend/demo_samples.json`
+(rebuild with `python backend/export_samples.py`). Only quick jobs are exposed: single and batch predictions (milliseconds),
+a re-evaluation of random validation rows (seconds), the test suite (3 s) and a 1–5 round federated run (10–25 s) that
+writes to `backend/.runtime/` only. The one-time held-out test evaluation is deliberately not repeatable from the UI.
 
 ## Setup
 

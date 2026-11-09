@@ -12,3 +12,14 @@ npm run data     # re-export src/data/*.json from the project files (uses ../ven
 ```
 
 Needs Node.js 18 or newer (nothing else). Data files: `src/data/dataset.json` and `src/data/results.json`, written by `scripts/export_data.py`.
+
+## Live test page
+
+The Live test tab needs the Python backend (it loads the trained models). From the project root, in a second terminal:
+
+```bash
+source venv/bin/activate
+uvicorn backend.main:app --port 8000
+```
+
+`npm run dev` forwards `/api` to port 8000 (see `vite.config.js`). The other tabs work without the backend.

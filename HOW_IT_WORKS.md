@@ -167,7 +167,33 @@ logs/           one folder per run_project.py run
 - A from-scratch run on another machine needs the 8 raw files in `dataset/raw/` (see the README) and the
   packages in `requirements.txt`.
 
-## 8. Troubleshooting
+## 8. The dashboard and the Live test backend
+
+The React dashboard in `frontend/` shows the results of the pipeline. Its data (`frontend/src/data/*.json`) is exported from
+`results/` and `dataset/` by `npm run data` (read-only), so five pages work without Python.
+
+The **Live test** page talks to a small API, `backend/main.py` (FastAPI), which loads the saved models
+(`models/rf_baseline.joblib` and the three `best.pt` checkpoints, each with its own scaler and the threshold chosen on validation data).
+
+```bash
+source venv/bin/activate
+uvicorn backend.main:app --port 8000        # terminal 1: API (docs at http://localhost:8000/docs)
+cd frontend && npm run dev                  # terminal 2: UI at http://localhost:5173, /api is proxied to port 8000
+```
+
+| Endpoint | What it does | Time |
+|---|---|---|
+| `POST /api/predict` | scores one flow (a sample id or edited feature values) with the four models | ms |
+| `POST /api/predict-batch` | scores the 40 sample flows in `backend/demo_samples.json` | ms |
+| `POST /api/quick-eval` | scores N random validation rows (scores cached per N and seed; thresholds adjustable) | seconds |
+| `POST /api/jobs` | background job: `tests` (pytest) or `federated` (1–5 FedAvg rounds into `backend/.runtime/`) | 3 s / 10–25 s |
+| `GET /api/jobs/{id}` | status, live log and result of a job | ms |
+
+Safety: the held-out test set is never scored in bulk by the API (the one-time evaluation stays in `results/`), mini federated runs write
+only to `backend/.runtime/` (git-ignored), and the sample flows are single-row demonstrations. To rebuild the sample file run
+`python backend/export_samples.py`.
+
+## 9. Troubleshooting
 
 | Message | Cause and fix |
 |---|---|
@@ -175,3 +201,6 @@ logs/           one folder per run_project.py run
 | `BLOCKED: missing input: ...` | A stage's input file does not exist, for example the raw files. The run stops there; fix the input and re-run. |
 | `... already exists (test set already evaluated)` | Expected protection. Use the default mode, which skips finished stages. |
 | A stage failed | The error is in the terminal and the full output in `logs/run_<timestamp>/<stage>.log`. |
+| Live test page says the backend is not running | Start it: `source venv/bin/activate && uvicorn backend.main:app --port 8000`, then reload the page. |
+| `Address already in use` on port 8000 | Another backend is running; stop it (`pkill -f "uvicorn backend.main"`) or use `--port 8001` and change the proxy in `frontend/vite.config.js`. |
+| Live test: a model is missing / 503 | `models/` has not been created yet; run `python run_project.py`. |

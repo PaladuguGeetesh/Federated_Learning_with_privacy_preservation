@@ -9,3 +9,5 @@ joblib==1.4.2
 optuna==5.0.0
 pytest==9.1.1
 PyYAML==6.0.3
+fastapi==0.110.3   # backend/ API used by the dashboard's Live test page
+uvicorn==0.30.1
