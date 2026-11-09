@@ -24,3 +24,6 @@ frontend/node_modules/
 frontend/dist/
 
 backend/.runtime/
+
+# Local-only: research paper sources and drafts (not published)
+paper/
